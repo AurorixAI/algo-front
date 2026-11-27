@@ -37,6 +37,8 @@ import type { AuditEntryItem, DecideBulkOut, DecideOut, SubstitutionDetailOut, S
 import { BACKDATED_EMPTY_TEXT, BACKDATED_FILTER_LABEL, HISTORY_LOAD_ERROR_TEXT, splitRows, waitingDecidedToast } from "@/lib/lesson-rules";
 import { isAuditRow, isWaitingRow, rowSource } from "@/lib/list-rows";
 import { AuditPanel, AuditTableRow } from "@/components/substitutions/history-rows";
+import { toastWithEffects } from "@/lib/money-effects";
+import { returnDoneText } from "@/lib/lesson-return";
 import { LessonReturnDialog, type ReturnLessonTarget } from "@/components/groups/lesson-return-dialogs";
 import { Notice } from "@/components/ui/notice";
 import { WaitingTableRow } from "@/components/substitutions/waiting-rows";
@@ -654,7 +656,12 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
         target={returnTarget}
         aboveLessonPanel
         onClose={() => setReturnTarget(null)}
-        onDone={() => { setReturnTarget(null); setAuditPanel(null); showToast("Урок возвращён", "success"); void load(true); refreshBadge(); }}
+        onDone={(result, target) => {
+          setReturnTarget(null); setAuditPanel(null);
+          const money = toastWithEffects(result);
+          showToast(returnDoneText(target.lessonDate, result.changed), money.tone, money.details);
+          void load(true); refreshBadge();
+        }}
         onStale={() => { void load(true); }}
       />
       <WaitingCancelDialog

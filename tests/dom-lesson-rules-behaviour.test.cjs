@@ -111,13 +111,16 @@ test("the preview is no preview and no refusal (a broken answer): the window say
   await page.close();
 });
 
-test("409 ALREADY_DECIDED already at the FIRST preview: the window opens as «Отмена уже решена» with the sentence of the server; the list and the counter are read again", async () => {
-  const run = await open(centreServer((r) => (r.method === "PUT" && KIND_PATH.test(r.path) && isDry(r) ? { status: 409, json: ALREADY } : null)));
+test("409 ALREADY_DECIDED already at the FIRST preview (the real answer of C13.1: the preview after another's decision): the window opens as «Отмена уже решена» with the sentence of the server - who, when, which outcome; the list and the counter are read again", async () => {
+  const real = answer("dry_run_confirm_after_other_decided_409");
+  assert.equal(real.detail.code, "ALREADY_DECIDED");
+  assert.equal(real.detail.message, "Отмену подтвердил Рустам Валиев (владелец) в 12:00: по вине центра.");
+  const run = await open(centreServer((r) => (r.method === "PUT" && KIND_PATH.test(r.path) && isDry(r) ? { status: 409, json: real } : null)));
   const { page, calls } = run;
   const list = reads(calls, (c) => LIST.test(c.path)), summary = reads(calls, (c) => c.path === SUMMARY);
   await page.click(MON);
   await page.waitForSelector('[data-testid="waiting-decided"]');
-  assert.equal(plain(await page.textContent('[data-testid="waiting-decided"]')), ALREADY.detail.message);
+  assert.equal(plain(await page.textContent('[data-testid="waiting-decided"]')), real.detail.message);
   assert.equal(await page.locator('[data-testid="waiting-outcomes"]').count(), 0);
   assert.equal(plain(await page.textContent('[data-testid="confirm-cancel"]')), "Закрыть");
   await until(() => reads(calls, (c) => LIST.test(c.path)) > list, "the list is read again");

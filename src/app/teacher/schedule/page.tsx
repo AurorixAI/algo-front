@@ -173,6 +173,11 @@ export default function TeacherSchedulePage() {
       if (notes.length > 0) setScheduleNotices(notes);
       void reloadAfterWeeklyChange();
     },
+    onCancellationWithdrawn: (text) => {
+      showToast(text, "success");
+      lessonPanel.closePanel();
+      void reloadAfterWeeklyChange();
+    },
   });
   const { activeLesson, setActiveLesson, consumeEscape, requestClose } = lessonPanel;
   const [liveExams, setLiveExams] = useState<LiveExamDashboardSummary[]>([]);

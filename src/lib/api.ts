@@ -735,6 +735,11 @@ export interface ScheduleOccurrence extends LessonEvent, Partial<LessonTeacherIn
   canActSelf?: boolean | null;
   monthClosed?: boolean | null;
   windowDays?: number | null;
+  /** LESSON-RULES C13: a cancellation of a past lesson that WAITS for the owner: the server says so (`waiting`), who wrote it (`reportedBy`, `reportedByRole` teacher | admin) and whether THIS viewer may take it back. */
+  waiting?: boolean | null;
+  reportedBy?: string | null;
+  reportedByRole?: string | null;
+  canWithdraw?: boolean | null;
 }
 
 /** Server-verified attendance state for a concrete lesson on the dashboard. */
@@ -952,6 +957,11 @@ export interface Lesson extends LessonPurposeFields {
   canActSelf?: boolean | null;
   monthClosed?: boolean | null;
   windowDays?: number | null;
+  /** LESSON-RULES C13: a cancellation of a past lesson that WAITS for the owner: the server says so (`waiting`), who wrote it (`reportedBy`, `reportedByRole` teacher | admin) and whether THIS viewer may take it back. */
+  waiting?: boolean | null;
+  reportedBy?: string | null;
+  reportedByRole?: string | null;
+  canWithdraw?: boolean | null;
 }
 
 /** W1 S26: the author of a one-off lesson. */
@@ -1752,7 +1762,7 @@ export const orgApi = {
 
   /** Money-1 Г (Р-4, Д-3): the sentence about the students for cancelling a lesson to come - the server's words, nothing is written.  A teacher gets 403 `TEACHER_CANNOT_CANCEL` for a lesson he may not cancel. */
   cancelConsequence: (groupId: string, params: { lessonDate: string; lessonId: string }, signal?: AbortSignal) =>
-    api<{ consequence: string }>(`/auth/org/groups/${encodePathId(groupId)}/lessons/cancel-consequence?${new URLSearchParams(params).toString()}`, { signal }),
+    api<{ consequence: string; waiting?: boolean }>(`/auth/org/groups/${encodePathId(groupId)}/lessons/cancel-consequence?${new URLSearchParams(params).toString()}`, { signal }),
 
   /** W1 F3 (S5): «Вернуть урок» - a cancelled lesson that has not started is planned again (owner / administrator). */
   restoreLesson: (groupId: string, body: { lessonId: string; lessonDate: string; reason: string; dryRun?: boolean; expectedKind?: StoredCancellationKind }, signal?: AbortSignal) =>

@@ -6,7 +6,7 @@ import { Modal } from "@/components/ui/modal";
 import { CONFIRM_FOOTER_CLASS, ConfirmFooter } from "@/components/money/dialog-footer";
 import { cancellationKindBody, DEFAULT_CANCELLATION_KIND, type CancellationKind } from "@/lib/payf";
 import { useMoneyRight } from "@/lib/use-money-right";
-import { warningTexts } from "@/lib/ops-errors";
+import { notesOf, type TeacherCancelNotes } from "@/lib/teacher-cancel";
 import { REASON_LIMITS, reasonProblemFor } from "@/lib/reason-rules";
 import { CANCEL_CONSEQUENCES, substitutionErrorText } from "@/lib/substitutions";
 import { CancellationKindField } from "./cancellation-kind-field";
@@ -41,8 +41,8 @@ export function CancelMissedLessonModal({
 }: {
   target: CancelMissedTarget | null;
   onClose: () => void;
-  /** After the server accepted the cancellation (the dialog is already closed); `notes` are what the server said besides (a day off made it a holiday, a substitute was released). */
-  onCancelled: (target: CancelMissedTarget, notes: string[]) => void | Promise<void>;
+  /** After the server accepted the cancellation (the dialog is already closed); `notes` are what the server said besides (a day off made it a holiday, a substitute was released); `notes.waiting` is the server's word that the cancellation waits for the owner (the sentence of the server is the first note). */
+  onCancelled: (target: CancelMissedTarget, notes: TeacherCancelNotes) => void | Promise<void>;
 }) {
   const [reason, setReason] = useState("");
   const [kind, setKind] = useState<CancellationKind>(DEFAULT_CANCELLATION_KIND);
@@ -89,7 +89,7 @@ export function CancelMissedLessonModal({
         ...cancellationKindBody(kind, canChooseKind),
       });
       onClose();
-      await onCancelled(target, warningTexts(out));
+      await onCancelled(target, notesOf(out));
     } catch (err) {
       setError(substitutionErrorText(err, "Не удалось сохранить. Данные не изменены."));
     } finally {

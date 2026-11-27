@@ -47,14 +47,34 @@ export interface WaitingTarget {
   cancelledAt?: string | null;
   reason?: string | null;
   waitingDays?: number | null;
+  /** Who wrote the cancellation, as the SERVER says it (`reportedBy`, `reportedByRole`): every list that knows the lesson sends both - the window never guesses the role. */
+  reportedBy?: string | null;
+  reportedByRole?: string | null;
 }
 
-/** Who wrote the cancellation, in the title of the window: «Преподаватель сообщил: урока не было» (the lesson sheet does not know who: «Отмена урока ждёт подтверждения»). */
-export function waitingDialogTitle(item: Pick<WaitingTarget, "cancelledBy">): string {
-  const role = item.cancelledBy?.role;
-  if (!item.cancelledBy) return "Отмена урока ждёт подтверждения";
-  const who = role === "admin" ? "Администратор" : role === "owner" ? "Владелец" : "Преподаватель";
-  return `${who} сообщил: урока не было`;
+/** The two roles the server names (`reportedByRole`): a teacher or - whoever else cancels - an administrator. */
+const REPORTER_WORD: Record<string, string> = { teacher: "Преподаватель", admin: "Администратор" };
+const REPORTER_WORD_LOWER: Record<string, string> = { teacher: "преподаватель", admin: "администратор" };
+
+/** «Сообщил: Эргашев К., преподаватель» - WHO wrote the cancellation of a lesson, by the words of the server (a tooltip of the journal and the schedule; null while the server says nobody). */
+export function reportedByText(by: string | null | undefined, role: string | null | undefined): string | null {
+  const name = (by ?? "").trim();
+  if (!name) return null;
+  const word = role ? REPORTER_WORD_LOWER[role] : undefined;
+  return word ? `Сообщил: ${name}, ${word}` : `Сообщил: ${name}`;
+}
+
+const WAITING_LESSON_RULE = "Отмену подтвердит владелец или администратор с доступом к деньгам";
+
+/** The hint of a lesson whose cancellation waits (the head of the column of the journal, the card of the schedule): who wrote it - the words of the server - and who decides. */
+export function waitingLessonHint(lesson: { reportedBy?: string | null; reportedByRole?: string | null } | null | undefined): string {
+  return `${reportedByText(lesson?.reportedBy, lesson?.reportedByRole) ?? "Отмена урока ждёт подтверждения"}. ${WAITING_LESSON_RULE}`;
+}
+
+/** The title of the window: who wrote the cancellation - by `reportedByRole` of the server; without it (an old answer) the window does not name the role. */
+export function waitingDialogTitle(item: Pick<WaitingTarget, "reportedByRole">): string {
+  const who = item.reportedByRole ? REPORTER_WORD[item.reportedByRole] : undefined;
+  return who ? `${who} сообщил: урока не было` : "Отмена урока ждёт подтверждения";
 }
 
 /** «Математика 7 · пн, 23.11 · 17:00–18:00» under the title. */
@@ -65,11 +85,11 @@ export function waitingDialogSubtitle(item: Pick<WaitingTarget, "group" | "lesso
 }
 
 /** «Эргашев К., 24.11 в 12:50: «Отключили свет»»: who, when and what he wrote - ONE sentence of the head of the window. */
-export function waitingDialogHead(item: Pick<WaitingTarget, "cancelledBy" | "cancelledAt" | "reason">): string {
+export function waitingDialogHead(item: Pick<WaitingTarget, "cancelledBy" | "cancelledAt" | "reason" | "reportedBy">): string {
   const when = item.cancelledAt ? shortWhen(item.cancelledAt).replace(" ", " в ") : "";
   const reason = (item.reason ?? "").trim();
   const said = reason && reason.toLowerCase() !== WAITING_REASON_PREFIX.toLowerCase() ? `: «${reason}»` : "";
-  return [item.cancelledBy?.name ?? "", when].filter(Boolean).join(", ") + said;
+  return [item.reportedBy || item.cancelledBy?.name || "", when].filter(Boolean).join(", ") + said;
 }
 
 export type WaitingOutcome = "centre" | "holiday" | "held";
@@ -81,9 +101,7 @@ export const WAITING_OUTCOMES: ReadonlyArray<{ key: WaitingOutcome; label: strin
   { key: "held", label: "Урок был", button: "Вернуть урок на отметку" },
 ];
 export const WAITING_PICK_WHY = "Выберите, что произошло";
-const TEACHER_NOT_PAID = "Преподавателю урок не оплачивается.";
-
-/** What the dry run of the confirmation says (`PUT …/cancellation-kind?dry_run=true`): the numbers of the server, nothing is added. */
+/** What the dry run of the confirmation says (`PUT …/cancellation-kind?dry_run=true`): the numbers AND the words of the server - the sentence of every outcome comes ready (`centre_text` / `holiday_text` / `held_text`), nothing is added here. */
 export interface WaitingPreview {
   students: number;
   per_student: number | null;
@@ -96,18 +114,46 @@ export interface WaitingPreview {
   window_days: number;
   teacher_can_mark: boolean;
   age_days: number;
+  /** The consequence of each outcome for the students and the pay of the teacher, in the words of the server. */
+  centre_text: string;
+  holiday_text: string;
+  held_text: string;
 }
 
 /**
  * What the answer of the dry run IS: the preview of the confirmation (`dry_run: true` and the numbers), an answer of a cancellation that somebody decided meanwhile (`changed: false` or no `dry_run` -
- * the server's sentence, when it sends one) or something else (a broken answer).  The shape is checked, never assumed.
+ * the server's sentence, when it sends one) or something else (a broken answer).  The shape is checked field by field, never assumed.
  */
 export type PreviewVerdict = { kind: "preview"; preview: WaitingPreview } | { kind: "decided"; text: string } | { kind: "broken" };
 
+const isText = (value: unknown): value is string => typeof value === "string" && value.trim() !== "";
+const isNumber = (value: unknown): value is number => typeof value === "number" && Number.isFinite(value);
+
 export function previewVerdict(answer: unknown): PreviewVerdict {
   const out = (answer && typeof answer === "object" ? answer : {}) as Record<string, unknown>;
-  const numbers = typeof out.students === "number" && typeof out.total === "number" && typeof out.recalc_off === "boolean";
-  if (out.dry_run === true && out.changed !== false && numbers) return { kind: "preview", preview: out as unknown as WaitingPreview };
+  if (out.dry_run === true && out.changed !== false
+    && isNumber(out.students) && isNumber(out.total) && typeof out.recalc_off === "boolean"
+    && isText(out.centre_text) && isText(out.holiday_text) && isText(out.held_text)) {
+    const zero = out.zero_reason;
+    return {
+      kind: "preview",
+      preview: {
+        students: out.students,
+        per_student: isNumber(out.per_student) ? out.per_student : null,
+        total: out.total,
+        recalc_off: out.recalc_off,
+        zero_reason: zero === "packages" || zero === "nobody_charged" || zero === "one_off" ? zero : null,
+        zero_text: isText(out.zero_text) ? out.zero_text : null,
+        restore_allowed: out.restore_allowed !== false,
+        window_days: isNumber(out.window_days) ? out.window_days : 0,
+        teacher_can_mark: out.teacher_can_mark !== false,
+        age_days: isNumber(out.age_days) ? out.age_days : 0,
+        centre_text: out.centre_text,
+        holiday_text: out.holiday_text,
+        held_text: out.held_text,
+      },
+    };
+  }
   if (out.ok === true && (out.changed === false || out.dry_run !== true)) {
     const text = [out.message, out.consequence].find((value) => typeof value === "string" && value.trim());
     return { kind: "decided", text: typeof text === "string" ? text.trim() : "" };
@@ -120,28 +166,10 @@ export function offeredOutcomes(preview: Pick<WaitingPreview, "restore_allowed">
   return WAITING_OUTCOMES.filter((outcome) => outcome.key !== "held" || preview === null || preview.restore_allowed !== false);
 }
 
-/** «9 ученикам по 50 000 сум, всего 450 000 сум» - the recalculation as the server counted it (no guess for another amount per student: only the total). */
-function recalcSentence(preview: WaitingPreview): string {
-  const n = preview.students;
-  const students = `${n} ${pluralRu(n, "ученику", "ученикам", "ученикам")}`;
-  return preview.per_student !== null
-    ? `Перерасчёт ${students} по ${formatMoney(preview.per_student)}, всего ${formatMoney(preview.total)}.`
-    : `Перерасчёт ${students}, всего ${formatMoney(preview.total)}.`;
-}
-
-/** The line under the cards for the chosen outcome: its OWN consequence for the students and for the pay of the teacher. */
+/** The line under the cards for the chosen outcome: the sentence of the server for THAT outcome (null until the preview has come). */
 export function outcomeCaption(outcome: WaitingOutcome, preview: WaitingPreview | null): string | null {
-  if (outcome === "holiday") return `Ученикам: без перерасчёта. ${TEACHER_NOT_PAID}`;
-  if (outcome === "held") {
-    if (preview === null) return null;
-    return preview.teacher_can_mark === false
-      ? `Отмена снимается. Урок старше ${preview.window_days} дн.: отметит администратор или владелец.`
-      : "Отмена снимается, преподаватель отметит посещаемость. Деньги считаются как за обычный урок.";
-  }
   if (preview === null) return null;
-  if (preview.recalc_off) return `Перерасчёт за отмены в центре выключен — ученикам ничего не изменится. ${TEACHER_NOT_PAID}`;
-  if (preview.students <= 0 || preview.total <= 0) return `${preview.zero_text || "Ученикам: без перерасчёта."} ${TEACHER_NOT_PAID}`;   // the sentence of the server says WHY it is zero; never «Перерасчёт 0 ученикам»
-  return `${recalcSentence(preview)} ${TEACHER_NOT_PAID}`;
+  return outcome === "holiday" ? preview.holiday_text : outcome === "held" ? preview.held_text : preview.centre_text;
 }
 
 /** The words of the toast after the decision. */
@@ -166,10 +194,10 @@ export function ownerDecidesLine(counts: { oneOffs: number; cancellations: numbe
   return `Решает владелец: ${parts.join(", ")}`;
 }
 
-/** «Эргашев К. сообщил 24.11, что урока не было · пн, 23.11, Математика 7» - the quiet line of a waiting cancellation for who cannot decide it. */
-export function reportedLine(item: Pick<WaitingCancellationItem, "cancelledBy" | "cancelledAt" | "lesson" | "group">): string {
+/** «Эргашев К. сообщил 24.11, что урока не было · пн, 23.11, Математика 7» - the quiet line of a waiting cancellation for who cannot decide it; the name is `reportedBy` of the server. */
+export function reportedLine(item: Pick<WaitingCancellationItem, "reportedBy" | "cancelledBy" | "cancelledAt" | "lesson" | "group">): string {
   const day = shortWhen(item.cancelledAt).split(" ")[0] ?? "";
-  const who = item.cancelledBy?.name || "Преподаватель";
+  const who = item.reportedBy || item.cancelledBy?.name || "Сообщили";
   return `${who} сообщил ${day}, что урока не было · ${dayAndDateLabel(item.lesson.date)}, ${item.group.name}`;
 }
 

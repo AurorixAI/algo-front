@@ -129,7 +129,7 @@ test("M2 tail: the page holds the mark; the block, the tab and the badge read it
   const page = read("src/components/substitutions/substitutions-page.tsx");
   assert.match(page, /const \[moneyLostFor, setMoneyLostFor\] = useState<\{ profile: unknown \} \| null>\(null\);/);
   assert.match(page, /const moneyRightLost = moneyRightLostFor\(moneyLostFor, user\);/);
-  assert.match(page, /const waitingCount = serverWaiting \?\? 0;/, "the number is the server's waitingTotal");
+  // the number of the tab is the server's waitingTotal: behaviour - dom-lesson-rules-behaviour ("the numbers are the server's")
   assert.match(page, /rightLost=\{moneyRightLost\}/);
   assert.match(page, /onRightLost=\{\(\) => setMoneyLostFor\(\{ profile: user \}\)\}/);
   assert.match(page, /setWaiting\(waitingCount\)/, "the badge of the menu follows the counter of the tab");

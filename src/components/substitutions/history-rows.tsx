@@ -6,6 +6,7 @@ import { ChevronRight } from "lucide-react";
 import { Chip } from "@/components/ui/chip";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
+import { Notice } from "@/components/ui/notice";
 import { buttonClass } from "@/lib/button-style";
 import { orgApi } from "@/lib/api";
 import { DRY_RUN_REASON } from "@/lib/dry-run";
@@ -65,6 +66,8 @@ export function AuditTableRow({ entry, cols, showReason, lessonHref, onOpen }: {
  * The panel «Подробнее» of an entry of the journal: the group, the lesson, «Сейчас: Задним числом · 6 дн.», the teacher, the one line of its history (when, what, who).  The owner and the administrator WITH the
  * money right also read what the lesson gave to the salary (the dry run of «Вернуть урок», the sums are the server's) and may return the lesson; the others read the same panel without money and without the return.
  */
+const RETURN_PREVIEW_ERROR = "Не удалось посчитать последствия возврата. Закройте запись и откройте её снова.";
+
 export function AuditPanel({ entry, workspace, canSeeMoney, onClose, onReturn }: {
   entry: AuditEntryItem | null;
   workspace: "owner" | "admin";
@@ -74,24 +77,27 @@ export function AuditPanel({ entry, workspace, canSeeMoney, onClose, onReturn }:
 }) {
   const bases = workspaceBases(workspace);
   const [salary, setSalary] = useState<string | null>(null);
+  const [previewError, setPreviewError] = useState<string | null>(null);
   const key = entry ? `${entry.group.id}|${entry.lesson.lessonId}|${entry.lesson.date}` : null;
-  const held = entry !== null && entry.kind !== "lesson_added";
+  // the server says whether the lesson can be returned (`canReturn`: held, the month open, the money right): the screen keeps no rule of its own
+  const mayReturn = entry !== null && entry.canReturn === true && canSeeMoney;
   useEffect(() => {
     setSalary(null);
-    if (!entry || !held || !canSeeMoney) return undefined;
+    setPreviewError(null);
+    if (!entry || !mayReturn) return undefined;
     let cancelled = false;
-    // what the lesson gave to the salary: the dry run of the return says it (nothing is written); a lesson that is no longer held (returned since) has nothing to say
+    // what the lesson gave to the salary: the dry run of the return says it (nothing is written); when it fails the person reads WHY and «Вернуть урок» is not offered
     orgApi.returnHeldLesson(entry.group.id, { lessonDate: entry.lesson.date, lessonId: entry.lesson.lessonId, reason: DRY_RUN_REASON, dryRun: true })
       .then((answer) => { if (!cancelled) setSalary(salaryLineOf(moneyEffectsOf(answer), formatBusinessDate())); })
-      .catch(() => { /* no line: the panel still says what happened */ });
+      .catch((failure) => { if (!cancelled) setPreviewError(failure instanceof Error && failure.message ? failure.message : RETURN_PREVIEW_ERROR); });
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key, held, canSeeMoney]);
+  }, [key, mayReturn]);
 
   const lessonLink = entry && entry.lesson.lessonId ? journalHref(bases.groups, { groupId: entry.group.id, lessonDate: entry.lesson.date, lessonId: entry.lesson.lessonId }) : null;
   const footer = entry ? (
     <div className="flex w-full flex-wrap items-center gap-x-4 gap-y-2">
-      {canSeeMoney && held && <Button variant="secondary" onClick={() => onReturn(entry)} data-testid="audit-return">Вернуть урок</Button>}
+      {mayReturn && previewError === null && <Button variant="secondary" onClick={() => onReturn(entry)} data-testid="audit-return">Вернуть урок</Button>}
       {lessonLink && <Link href={lessonLink} data-testid="panel-open-lesson" className={buttonClass({ variant: "secondary" })}>Открыть урок</Link>}
       <Link href={groupHref(bases.groups, entry.group.id)} data-testid="panel-group-link" className="text-sm font-semibold text-primary-700 hover:underline">Группа ›</Link>
       {workspace === "owner" && entry.teacher.id && <Link href={teacherHref(entry.teacher.id)} data-testid="panel-teacher-link" className="text-sm font-semibold text-primary-700 hover:underline">Преподаватель ›</Link>}
@@ -112,6 +118,7 @@ export function AuditPanel({ entry, workspace, canSeeMoney, onClose, onReturn }:
             {entry.kind === "corrected" && entry.reason && <div className="grid grid-cols-[7.5rem_minmax(0,1fr)] gap-x-3 text-sm"><dt className="text-slate-500">Причина</dt><dd className="min-w-0 break-words font-medium text-slate-800">{entry.reason}</dd></div>}
           </dl>
           {salary && <p data-testid="panel-salary" className="text-sm text-slate-800">{salary}</p>}
+          {previewError !== null && <Notice variant="warning" role="alert" testId="panel-return-error">{previewError}</Notice>}
           <ol data-testid="timeline" className="space-y-3 border-l border-slate-200 pl-4">
             <li data-testid="timeline-row" className="relative">
               <span aria-hidden className="absolute -left-[1.3rem] top-1.5 h-2 w-2 rounded-full bg-slate-400" />

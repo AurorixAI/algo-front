@@ -8,7 +8,7 @@ const { answer, listServer, WORLD_DAY, plain } = require("./helpers/lesson-rules
 
 const ctx = setup(test);
 const KIND_PATH = /\/attendance\/cancellation-kind$/;
-const MON = 'button[aria-label="Решить отмену: Математика 7, Эргашев К., 23.11"]';   // the dry run answers of the world are for the lesson of 23.11 (the second row: the older one, 18.11, is the first)
+const MON = 'button[aria-label="Решить отмену: Математика 7, Эргашев К., 23.11"]';   // the dry run answers of the world are for the lesson of 23.11 (the rows are found by their lesson: the order of two rows reported at one moment is the server's tie-break)
 const noise = (errors) => errors.filter((text) => !/404|Failed to load resource|409|422|500/.test(text));
 
 async function open(server, { user = OWNER, width = 1280 } = {}) {
@@ -19,13 +19,14 @@ async function open(server, { user = OWNER, width = 1280 } = {}) {
 }
 
 for (const width of [1280, 1024, 375]) {
-  test(`${width}: two waiting cancellations are two rows (the older first) with the words of the teacher, «сообщено сегодня», «Решить» named by the lesson and no tick (the real answer pending_owner)`, async () => {
+  test(`${width}: two waiting cancellations are two rows with the words of the teacher, «сообщено сегодня», «Решить» named by the lesson and no tick (the real answer pending_owner)`, async () => {
     const { page, errors } = await open(listServer(), { width });
     const rows = page.locator('[data-testid="waiting-row"]');
     assert.equal(await rows.count(), 2);
-    const first = plain(await rows.nth(0).textContent());
+    // the two rows were reported at one moment: the order between them is the server's tie-break (it follows the ids), so each row is found by its lesson, not by its place
+    const first = plain(await rows.filter({ hasText: "18.11" }).textContent());
     assert.match(first, /ср, 18\.11 · 10:00–11:30/);
-    const text = plain(await rows.nth(1).textContent());
+    const text = plain(await rows.filter({ hasText: "23.11" }).textContent());
     assert.match(text, /пн, 23\.11 · 10:00–11:30/);
     assert.match(text, /Математика 7/);
     assert.match(text, /Эргашев К\./);
@@ -160,13 +161,15 @@ test("an administrator WITHOUT the money right: the waiting cancellation is not 
   assert.equal(plain(await page.textContent('[data-testid="one-off-decisions-hint"]')), "Отмену урока и оплату дополнительного урока решает владелец или администратор с доступом к деньгам.");
   const lines = page.locator('[data-testid="waiting-reported-row"]');
   assert.equal(await lines.count(), 2);
-  const line = plain(await lines.nth(1).textContent());
-  assert.match(plain(await lines.nth(0).textContent()), /Эргашев К\. сообщил 26\.11, что урока не было · ср, 18\.11, Математика 7/);
+  // found by the lesson: two lines reported at one moment stand in the server's tie-break order
+  const line = plain(await lines.filter({ hasText: "23.11" }).textContent());
+  assert.match(plain(await lines.filter({ hasText: "18.11" }).textContent()), /Эргашев К\. сообщил 26\.11, что урока не было · ср, 18\.11, Математика 7/);
   assert.match(line, /Эргашев К\. сообщил 26\.11, что урока не было · пн, 23\.11, Математика 7/);
   assert.ok(!/сум/.test(line), "no sum for a role without the right");
   assert.equal(await page.locator('button:has-text("Решить")').count(), 0);
   assert.deepEqual(pending.items.map((i) => i.canWithdraw), [false, false], "the real answer: the cancellations of the teacher are not his to take back");
   assert.equal(await page.locator('[data-testid="withdraw-cancellation"]').count(), 0, "«Отозвать» only where the server says canWithdraw");
+  assert.equal(await page.locator('text="Запросов на замену нет"').count(), 0, "the empty text is not said while lines of money («решает владелец») wait");
   await page.close();
 });
 

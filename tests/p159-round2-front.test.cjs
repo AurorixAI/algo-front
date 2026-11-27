@@ -145,10 +145,8 @@ test("M1: the form of an admin without the right speaks for HIM; the teacher's w
 
 test("M2: the number of the tab and of the badge is the server's `waitingTotal` - the screen has no count of its own (behaviour: dom-lesson-rules-behaviour.test.cjs)", () => {
   const page = read("src/components/substitutions/substitutions-page.tsx");
-  assert.doesNotMatch(page, /waitingCountFor|listedCountFor/, "the second counting rule is gone");
   assert.equal(O.waitingCountFor, undefined);
   assert.equal(O.listedCountFor, undefined);
-  assert.match(page, /setServerWaiting\(typeof data\.waitingTotal === "number" \? data\.waitingTotal : null\);/);
   assert.match(page, /setWaiting\(waitingCount\)/);
   // the server's number wins for the menu badge
   assert.equal(O.waitingTotal({ pendingTotal: 2, oneOffDecisionsTotal: 3, waitingTotal: 2 }), 2);

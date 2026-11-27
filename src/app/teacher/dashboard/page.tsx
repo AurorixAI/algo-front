@@ -70,6 +70,11 @@ interface LessonSummary {
   canActSelf?: boolean | null;
   monthClosed?: boolean | null;
   windowDays?: number | null;
+  /** C13: a waiting cancellation of this lesson: who wrote it and may the viewer take it back. */
+  waiting?: boolean | null;
+  reportedBy?: string | null;
+  reportedByRole?: string | null;
+  canWithdraw?: boolean | null;
 }
 
 type LessonAction = {
@@ -178,6 +183,11 @@ export default function TeacherDashboardPage() {
     notifyRefusal: (notice, reason) => showToast(notice, "error", [reason]),
     onMissedCancelled: (notes) => {
       if (notes.length > 0) showToast(cancelToastTitle(notes), "warning", notes);
+      setDashboardRefreshNonce((value) => value + 1);
+    },
+    onCancellationWithdrawn: (text) => {
+      showToast(text, "success");
+      lessonPanel.closePanel();
       setDashboardRefreshNonce((value) => value + 1);
     },
   });

@@ -95,7 +95,7 @@ test("the error is rendered outside the marking list on both lesson panels", () 
 
   for (const file of ["app/teacher/dashboard/page.tsx", "app/teacher/schedule/page.tsx"]) {
     const page = read(file);
-    assert.match(page, /\{!isMarkingAttendance && <LessonPanelError message=\{attendanceError\} info=\{attendanceInfo\} \/>\}/, file);          // LESSON-RULES: a rule of the centre (info) is not a red error
+    // a rule of the centre (info) is not a red error: behaviour - dom-lesson-rules-teacher-window (the real refusals)
     // start / finish / cancel keep the server text instead of a canned sentence
     // (LOGIC-B: the refusal goes through `lessonFailure` / `marksOps.refused`, whose text is the server's message, the canned sentence only as a fallback)
     assert.match(page, /(serverErrorMessage|marksOps\.refused)\(err, ("cancel", )?"Не удалось (отменить урок|отметить, что урока не было)/, file);

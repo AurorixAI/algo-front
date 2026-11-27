@@ -33,13 +33,23 @@ export async function sendTeacherCancel(
 /** The lines the screen shows after the cancellation; `waiting` (the server says so): the cancellation of a past lesson waits for the owner, the first line is the server's sentence about it. */
 export type TeacherCancelNotes = string[] & { waiting?: boolean };
 
-function notesOf(out: { warnings?: Array<{ code?: string; message?: string }> | null; waiting?: boolean; consequence?: string }): TeacherCancelNotes {
+export function notesOf(out: { warnings?: Array<{ code?: string; message?: string }> | null; waiting?: boolean; consequence?: string }): TeacherCancelNotes {
   const notes: TeacherCancelNotes = warningTexts(out);
   if (out.waiting === true) {
     if (out.consequence) notes.unshift(out.consequence);
     notes.waiting = true;
   }
   return notes;
+}
+
+/**
+ * The toast after «Урока не было» of a past lesson said by an administrator or the owner (the journal, the list of open lessons): by `waiting` of the server's answer - «Отмена урока 23 ноября ждёт
+ * подтверждения» with the server's sentence under it (an administrator without the money right reports, the owner decides) - or the plain «Урок … отмечен как не состоявшийся».
+ */
+export function missedCancelToast(dateLabel: string, notes: TeacherCancelNotes): { title: string; tone: "success" | "warning" } {
+  return notes.waiting
+    ? { title: `Отмена урока ${dateLabel} ждёт подтверждения`, tone: "warning" }
+    : { title: `Урок ${dateLabel} отмечен как не состоявшийся`, tone: notes.length ? "warning" : "success" };
 }
 
 /** The title of the toast after the cancellation of a lesson: «Отмена ждёт подтверждения» for a past lesson (the owner decides it), «Урок отмечен как не состоявшийся» otherwise. */

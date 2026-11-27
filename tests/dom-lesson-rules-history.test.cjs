@@ -39,12 +39,14 @@ for (const width of [1280, 1024, 375]) {
     for (const date of ["02.11", "09.11", "25.11"]) assert.equal(await page.locator('[data-testid="substitution-row"]').filter({ hasText: new RegExp(`, ${date.replace(".", "\\.")} ·`) }).filter({ hasText: "Урок возвращён" }).count(), 1, `${date}: one return row`);
     assert.equal(await page.locator('[data-testid="substitution-row"]').filter({ hasText: /Урок был/ }).count(), 0, "the old second row «Урок был» is gone");
     assert.ok(!text.includes("Включён в зарплату"), "the cancellation of 02.11 «включён в зарплату» is not a second row of the returned lesson (the words stay in the block of the teacher)");
-    assert.match(plain(await rows.nth(0).textContent()), /ср, 11\.11 · 10:00–11:30/, "the time of the lesson is in every record");
-    assert.match(plain(await page.locator('[data-testid="audit-row"]').last().textContent()), /вт, 03\.11 · 14:00–15:30/, "and in every entry of the journal");
+    // all the rows were written at one moment: their order is the server's tie-break (it follows the ids), so every row is checked, none by its place
+    for (const text of await rows.allTextContents()) assert.match(plain(text), /(пн|вт|ср|чт|пт|сб|вс), \d\d\.\d\d · \d\d:\d\d–\d\d:\d\d/, "the time of the lesson is in every record and in every entry of the journal");
+    assert.match(plain(await page.locator('[data-testid="substitution-row"]').filter({ hasText: /, 11\.11 ·/ }).first().textContent()), /ср, 11\.11 · 10:00–11:30/);
+    assert.match(plain(await page.locator('[data-testid="audit-row"]').filter({ hasText: /, 03\.11 ·/ }).first().textContent()), /вт, 03\.11 · 14:00–15:30/, "and in every entry of the journal");
     assert.match(plain(await page.locator('[data-testid="reason-words"]').first().textContent()), /Отключили свет/);
     assert.match(plain(await page.locator('[data-testid="audit-row"][data-kind="corrected"]').textContent()), /Ошибся/);
     assert.equal(await page.locator('[data-testid="audit-by"]').count(), 3, "the owner wrote three entries over the lessons of the teacher: said under the teacher");
-    assert.match(plain(await page.locator('[data-testid="audit-by"]').first().textContent()), /оформление: Валиев Р\./);
+    for (const text of await page.locator('[data-testid="audit-by"]').allTextContents()) assert.match(plain(text), /оформление: Валиев Р\./);
     assert.equal(await page.locator('[data-testid="audit-row"][data-kind="backdated"] [data-testid="audit-by"]').count(), 2, "the teacher closed his own lessons: nobody else is named");
     assert.equal(await page.locator('[data-testid="backdated-only"]').count(), 1);
     assert.equal(await page.locator('text="Только срочные"').count(), 0);
@@ -126,7 +128,8 @@ test("the panel of an entry: group, lesson, «Сейчас», the teacher, one l
   const run = await openHistory(listServer({ extra: (r) => (r.method === "POST" && /\/attendance\/return/.test(r.path) ? { json: answer("dry_run_return_payroll") } : null) }));
   const { page, calls } = run;
   await page.waitForSelector('[data-testid="audit-row"][data-kind="backdated"]');
-  await page.click('[data-testid="audit-row"][data-kind="backdated"] [data-testid="audit-details"]');
+  // the entry of the lesson of 02.11 (24 days late: the owner formalised it); the order of the rows is the server's tie-break, so it is found by its lesson
+  await page.locator('[data-testid="audit-row"][data-kind="backdated"]').filter({ hasText: /, 02\.11 ·/ }).locator('[data-testid="audit-details"]').click();
   await page.waitForSelector('[data-testid="panel-salary"]');
   const panel = plain(await page.textContent('[data-testid="audit-panel"]'));
   assert.match(panel, /Математика 7/);

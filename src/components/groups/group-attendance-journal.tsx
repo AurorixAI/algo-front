@@ -81,7 +81,7 @@ import { LessonTeacherDialog, type LessonTeacherTarget } from "@/components/grou
 import { LessonChips } from "@/components/substitutions/lesson-chips";
 import { UNDO_DECISION_LABEL, canUndoDecision, groupsBaseOf, purposeMarks, undoToastText } from "@/lib/one-off";
 import { useAuthStore } from "@/lib/store";
-import { LESSON_CANCELLED_LABEL, assignmentNotes, directAssignToast, lessonMarks, substitutionsHref, substitutionsPathFor } from "@/lib/substitutions";
+import { LESSON_CANCELLED_LABEL, assignmentNotes, directAssignToast, lessonLabel, lessonMarks, substitutionsHref, substitutionsPathFor } from "@/lib/substitutions";
 import {
   conflictHeadline,
   examSyncNotice,
@@ -115,8 +115,10 @@ import { nobodyCameQuestion } from "@/lib/attendance-ops";
 import { COLUMN_ACTION_HINT, headerChipPlan } from "@/lib/journal-chips";
 import { ConfirmFooter } from "@/components/money/dialog-footer";
 import { LessonReturnDialog, ReturnToReviewDialog, type ReturnLessonTarget } from "@/components/groups/lesson-return-dialogs";
+import { missedCancelToast } from "@/lib/teacher-cancel";
+import { WITHDRAW_CANCELLATION_LABEL, useWithdrawCancellation, withdrawButtonLabel } from "@/lib/use-withdraw-cancellation";
 import { WaitingCancelDialog } from "@/components/substitutions/waiting-cancel-dialog";
-import { waitingDecidedToast, type WaitingTarget } from "@/lib/lesson-rules";
+import { waitingDecidedToast, waitingLessonHint, type WaitingTarget } from "@/lib/lesson-rules";
 import { useSubstitutionBadge } from "@/lib/substitution-badge";
 import { DECIDE_WAITING_LABEL, WAITING_CANCEL_LABEL } from "@/lib/payf";
 import { ReconcileLessonDialog, type ReconcileTarget } from "@/components/groups/reconcile-lesson-dialog";
@@ -302,7 +304,7 @@ function formatMembershipEvent(event: MembershipEvent): string {
   return `Переведён${event.source_group_name ? ` из «${event.source_group_name}»` : " в эту группу"}${date ? ` · ${date}` : ""}`;
 }
 
-function lessonStatusPresentation(status: string, lessonDate: string, today: string, cancelKind: string | null = null) {
+function lessonStatusPresentation(status: string, lessonDate: string, today: string, cancelKind: string | null = null, lesson: Pick<Lesson, "reportedBy" | "reportedByRole"> | null = null) {
   if (status === "completed") {
     return {
       label: "Завершён",
@@ -312,7 +314,7 @@ function lessonStatusPresentation(status: string, lessonDate: string, today: str
   }
   if (status === "cancelled") {
     // LESSON-RULES: the cancellation of a past lesson that waits for the owner says so in the head of the column
-    if (cancelKind === "unconfirmed") return { label: WAITING_CANCEL_LABEL, className: "text-amber-700", description: "Преподаватель сообщил, что урока не было: отмену подтвердит владелец или администратор с доступом к деньгам" };
+    if (cancelKind === "unconfirmed") return { label: WAITING_CANCEL_LABEL, className: "text-amber-700", description: waitingLessonHint(lesson) };
     return { label: "Не состоялся", className: "text-slate-500", description: "Урока не было: посещаемость недоступна" };
   }
   if (status === "in_progress" && lessonDate < today) {
@@ -503,6 +505,11 @@ export function GroupAttendanceJournal({
   }, [groupId, period.end, period.start]);
   const loadAttendanceRef = useRef(loadAttendance);
   loadAttendanceRef.current = loadAttendance;
+  // LESSON-RULES: the author takes back his waiting cancellation from the column of the lesson (the server says `canWithdraw`); the journal and the badge of «Замены» are read again whatever the answer was
+  const withdrawCancellation = useWithdrawCancellation({
+    say: (text, tone) => showToast(text, tone),
+    reload: async () => { await loadAttendanceRef.current(true); void useSubstitutionBadge.getState().refresh(true); },
+  });
 
   useEffect(() => {
     void loadAttendance();
@@ -714,7 +721,7 @@ export function GroupAttendanceJournal({
     const moved = lessonStatus === "cancelled" && lesson.substitutionOutcome?.kind === "rescheduled";
     // R2-4 (walk of 05.11): a cancelled lesson of TODAY that has begun goes back to the review at once (the start of the lesson, like the server), not the next day
     const started = lessonHasStarted({ date: lesson.date, today, startTime: lesson.startTime || lesson.start_time });
-    return lessonAdminActions(lessonStatus, lesson.date, today, { moneyRight, cancelKind: attendanceData?.cancellationKinds?.[key] ?? null, moved, undoDecision: canUndoDecision(lesson, moneyRight), started });
+    return lessonAdminActions(lessonStatus, lesson.date, today, { moneyRight, cancelKind: attendanceData?.cancellationKinds?.[key] ?? null, moved, undoDecision: canUndoDecision(lesson, moneyRight), started, canWithdraw: lesson.canWithdraw });
   };
 
   /** LESSON-RULES C10: why a teacher cannot correct the marks of his own held lesson (the server's flags of THIS lesson: a closed month, a lesson older than the window); null when he can or it is not his. */
@@ -1299,9 +1306,17 @@ export function GroupAttendanceJournal({
       setReviewTarget({ groupId, lessonId: lesson.id, lessonDate: lesson.date });
       return;
     }
+    if (action === "withdraw") {
+      void withdrawCancellation.withdraw({ groupId, lessonId: lesson.id, lessonDate: lesson.date });
+      return;
+    }
     if (action === "decide_waiting") {
-      // LESSON-RULES: the same window as in «Замены» (three outcomes); the journal knows the group and the lesson, not who wrote it - the window says only what it knows
-      setWaitingTarget({ group: { id: groupId, name: groupName ?? "" }, lesson: { lessonId: lesson.id, date: lesson.date, startTime: lesson.startTime || lesson.start_time || null, endTime: lesson.endTime || null } });
+      // LESSON-RULES: the same window as in «Замены» (three outcomes); who wrote the cancellation is what the server says of the lesson (`reportedBy`, `reportedByRole`)
+      setWaitingTarget({
+        group: { id: groupId, name: groupName ?? "" },
+        lesson: { lessonId: lesson.id, date: lesson.date, startTime: lesson.startTime || lesson.start_time || null, endTime: lesson.endTime || null },
+        reportedBy: lesson.reportedBy, reportedByRole: lesson.reportedByRole,
+      });
       return;
     }
     if (action === "reconcile") {
@@ -1554,7 +1569,7 @@ export function GroupAttendanceJournal({
                     const dateValue = journalColumnDate(lesson.date);
                     const key = instanceKey(lesson);
                     const lessonStatus = attendanceData?.statuses?.[key] || lesson.status || "scheduled";
-                    const presentation = lessonStatusPresentation(lessonStatus, lesson.date, today, attendanceData?.cancellationKinds?.[key] ?? null);
+                    const presentation = lessonStatusPresentation(lessonStatus, lesson.date, today, attendanceData?.cancellationKinds?.[key] ?? null, lesson);
                     const inCorrection = correcting?.key === key;
                     const correction = attendanceData?.corrections?.[key];
                     const adminActions = !correcting ? actionsFor(lesson, key, lessonStatus) : [];
@@ -1905,7 +1920,7 @@ export function GroupAttendanceJournal({
                     const dateValue = journalColumnDate(lesson.date);
                     const key = instanceKey(lesson);
                     const lessonStatus = attendanceData?.statuses?.[key] || lesson.status || "scheduled";
-                    const presentation = lessonStatusPresentation(lessonStatus, lesson.date, today, attendanceData?.cancellationKinds?.[key] ?? null);
+                    const presentation = lessonStatusPresentation(lessonStatus, lesson.date, today, attendanceData?.cancellationKinds?.[key] ?? null, lesson);
                     return (
                       <th key={key} scope="col" title={presentation.description} className="min-w-[132px] border-r border-slate-200 px-3 py-3 text-center">
                         <div className="space-y-0.5">
@@ -2109,6 +2124,12 @@ export function GroupAttendanceJournal({
                 <span className="min-w-0"><span className="block">{DECIDE_WAITING_LABEL}</span><MenuHint text={COLUMN_ACTION_HINT.decide_waiting} /></span>
               </button>
             )}
+            {actions.includes("withdraw") && (
+              <button type="button" role="menuitem" data-testid="menu-withdraw" aria-label={withdrawButtonLabel(lessonLabel({ group: { name: groupName ?? "" }, lesson: { date: lesson.date, startTime: lesson.startTime || lesson.start_time, endTime: lesson.endTime } }))} disabled={withdrawCancellation.busyKey !== null} onClick={() => void runColumnAction("withdraw", lesson)} className="flex w-full items-start gap-2 rounded-xl px-3 py-2.5 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60">
+                <Undo2 className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+                <span className="min-w-0"><span className="block">{WITHDRAW_CANCELLATION_LABEL}</span><MenuHint text={COLUMN_ACTION_HINT.withdraw} /></span>
+              </button>
+            )}
             {actions.includes("return_review") && (
               <button type="button" role="menuitem" data-testid="menu-return-review" onClick={() => void runColumnAction("return_review", lesson)} className="flex w-full items-start gap-2 rounded-xl px-3 py-2.5 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50">
                 <RotateCcw className="mt-0.5 h-4 w-4 shrink-0 text-slate-500" />
@@ -2192,7 +2213,8 @@ export function GroupAttendanceJournal({
         onClose={() => setCancelMissed(null)}
         onCancelled={async (done, notes) => {
           await loadAttendanceRef.current(true);
-          showToast(`Урок ${formatWeekdayDate(done.lessonDate)} отмечен как не состоявшийся`, notes.length ? "warning" : "success", notes);
+          const toast = missedCancelToast(formatWeekdayDate(done.lessonDate), notes);
+          showToast(toast.title, toast.tone, notes);
         }}
       />
 

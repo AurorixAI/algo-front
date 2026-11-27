@@ -35,6 +35,9 @@ import { isMovedAway, timeRange } from "@/lib/schedule-plan";
 import { movedAwayLines } from "@/lib/schedule-card-actions";
 import { focusEntryAgain } from "@/lib/focus-entry";
 import { completedLessonNote } from "@/lib/lesson-panel-view";
+import { reportedByText } from "@/lib/lesson-rules";
+import { lessonLabel } from "@/lib/substitutions";
+import { WITHDRAW_CANCELLATION_LABEL, withdrawButtonLabel } from "@/lib/use-withdraw-cancellation";
 import { journalHref } from "@/lib/open-lessons";
 import { pluralRu } from "@/lib/payments";
 import { DAYS } from "@/lib/schedule-time";
@@ -86,7 +89,7 @@ export function TeacherLessonPanelView<L extends TeacherPanelLesson>({ panel, us
     activeLesson, setActiveLesson, requestClose, movedTarget, openMovedLesson, activeInstanceStatus, activeCancellationReason, groupStudents, attendance, excuseReasons, savedExcuses, excuseReasonInvalidId,
     isMarkingAttendance, setIsMarkingAttendance, isAttendanceSaved, attendanceError, attendanceInfo, activeTeacherInfo, activeRequestMark, activeRosterSource,
     isCancellingLesson, setIsCancellingLesson, cancellationReason, setCancellationReason, cancelVariant, lessonExamBinding, setLessonExamBinding,
-    loadingStudents, savingAttendance, marksOps, teacherActions, moveHoldsEscape, canFinishLesson, activeLessonDate, activeTimeStatus, banner,
+    loadingStudents, savingAttendance, marksOps, teacherActions, moveHoldsEscape, canFinishLesson, activeLessonDate, activeTimeStatus, banner, withdrawActiveCancellation, withdrawBusy,
     activeMissedAction, activeMissedUnknown, retryOpenActions, lessonTooOld, lessonTooOldLine, activeSubsequentLesson, ledByOther, lessonMenuItems, cancelCardItem, isLessonMenuOpen, setIsLessonMenuOpen, businessDate,
     handleAttendanceChange, handleStartLesson, handleSaveAttendance, handleFinishLesson, handleCancelLesson, openMissedLesson,
     setAttendance, setExcuseReasons, setIsAttendanceDirty, setAttendanceError, setExcuseReasonInvalidId,
@@ -111,7 +114,7 @@ export function TeacherLessonPanelView<L extends TeacherPanelLesson>({ panel, us
   useEffect(() => { if (!menuShown && isLessonMenuOpen) setIsLessonMenuOpen(false); }, [menuShown, isLessonMenuOpen, setIsLessonMenuOpen]);
 
   // LESSON-RULES Э5: «Урока не было» of a lesson that has started is a REPORT - the sentence of the server about what happens next (the owner confirms) is read when the teacher opens the question
-  const [pastConsequence, setPastConsequence] = useState<string | null>(null);
+  const [pastConsequence, setPastConsequence] = useState<{ text: string | null; waiting: boolean | null } | null>(null);
   const reporting = missedLessonAction !== null && isCancellingMissedLesson;
   const reportKey = reporting && missedLessonAction ? `${missedLessonAction.groupId}|${missedLessonAction.lessonId}|${missedLessonAction.lessonDate}` : null;
   useEffect(() => {
@@ -120,7 +123,7 @@ export function TeacherLessonPanelView<L extends TeacherPanelLesson>({ panel, us
     let stale = false;
     Promise.resolve()
       .then(() => orgApi.cancelConsequence(missedLessonAction.groupId, { lessonDate: missedLessonAction.lessonDate, lessonId: missedLessonAction.lessonId }))
-      .then((answer) => { if (!stale) setPastConsequence(consequenceTextOf(answer)); })
+      .then((answer) => { if (!stale) setPastConsequence({ text: consequenceTextOf(answer), waiting: typeof answer?.waiting === "boolean" ? answer.waiting : null }); })
       .catch(() => { /* no sentence: the report is never blocked by it */ });
     return () => { stale = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -232,7 +235,8 @@ export function TeacherLessonPanelView<L extends TeacherPanelLesson>({ panel, us
                     <LessonCancelPanel
                       autoFocus
                       pastLesson
-                      consequence={pastConsequence}
+                      consequence={pastConsequence?.text ?? null}
+                      waiting={pastConsequence?.waiting ?? null}
                       date={missedLessonAction.lessonDate}
                       reason={missedLessonCancellationReason}
                       onReason={setMissedLessonCancellationReason}
@@ -388,11 +392,26 @@ export function TeacherLessonPanelView<L extends TeacherPanelLesson>({ panel, us
                               </div>
                             ) : (
                               <div>
-                                <p className="text-xs font-bold text-slate-900">Урок отменён</p>
+                                <p className="text-xs font-bold text-slate-900">{activeLesson.waiting === true ? "Отмена ждёт подтверждения" : "Урок отменён"}</p>
+                                {activeLesson.waiting === true && reportedByText(activeLesson.reportedBy, activeLesson.reportedByRole) && (
+                                  <p data-testid="panel-reported-by" className="text-xs text-slate-600 mt-0.5">{reportedByText(activeLesson.reportedBy, activeLesson.reportedByRole)}</p>
+                                )}
                                 <p className="text-xs text-slate-600 mt-0.5">Причина: {activeCancellationReason || "не указана"}</p>
                               </div>
                             )}
                           </div>
+                          {!movedAway && activeLesson.waiting === true && activeLesson.canWithdraw === true && (
+                            <Button
+                              type="button"
+                              variant="secondary"
+                              size="sm"
+                              data-testid="panel-withdraw"
+                              aria-label={withdrawButtonLabel(lessonLabel({ group: { name: activeLesson.groupName }, lesson: { date: activeLessonDate ?? "", startTime: activeLesson.startTime, endTime: activeLesson.endTime } }))}
+                              disabled={withdrawBusy}
+                              onClick={withdrawActiveCancellation}
+                              className="shrink-0"
+                            >{WITHDRAW_CANCELLATION_LABEL}</Button>
+                          )}
                           {movedAway && movedTarget && (
                             <Button type="button" onClick={openMovedLesson} variant="secondary" size="sm" className="shrink-0">
                               Открыть урок {formatDayMonthRu(movedTarget.occurrenceDate)}

@@ -337,9 +337,9 @@ test("the notes of the server (warnings) reach the person on every road of a can
   const notes = (file, needle) => assert.match(read(file), needle, file);
   notes("src/components/groups/lesson-action-sheet.tsx", /onChanged\("Урок отменён", warningTexts\(cancelled\)\)/);
   notes("src/components/groups/group-schedule-overview.tsx", /onChanged=\{\(text, notes\) => \{ setSheetLesson\(null\); showToast\(text, notes\?\.length \? "warning" : "success", notes\)/);
-  notes("src/components/attendance/cancel-missed-lesson-modal.tsx", /onCancelled\(target, warningTexts\(out\)\)/);
-  notes("src/components/attendance/open-lessons-view.tsx", /notes\.length \? "warning" : "success", notes/);
-  notes("src/components/groups/group-attendance-journal.tsx", /done\.lessonDate\)\} отмечен как не состоявшийся`, notes\.length \? "warning" : "success", notes/);
+  // the road of «Урока не было» of a past lesson (the modal of the journal and of the list of open lessons) hands the notes of the server AND its `waiting` to the toast: behaviour - dom-lesson-rules-batch3
+  // (the journal: the sentence of the server is the note of the toast) and lesson-rules-units (`notesOf`, `missedCancelToast`: a note makes the toast a warning); the list of open lessons has no screen test of its own
+  notes("src/components/attendance/open-lessons-view.tsx", /missedCancelToast\(formatWeekdayDate\(done\.lessonDate\), notes\);\s*showToast\(toast\.title, toast\.tone, notes\)/);
   notes("src/lib/api.ts", /interface CancelMissedResult[\s\S]*warnings\?: OpsWarning\[\]/);
   notes("src/lib/ops-b-types.ts", /warnings\?: OpsWarning\[\];\n  \/\*\* Version of the lesson record/);
   assert.equal(S.CLOSED_REASON_TEXT.LESSON_RESTORED, "Урок возвращён", "the journal «Замены» knows the new closing");

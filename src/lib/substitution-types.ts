@@ -218,6 +218,9 @@ export interface WaitingCancellationItem {
   canDecide: boolean;
   /** May the caller take this cancellation back (its author while it waits; an administrator without the money right for the one he made himself)? Only `true` shows «Отозвать». */
   canWithdraw?: boolean | null;
+  /** WHO wrote it, in the words of the server: the short name and `teacher` | `admin` (the screen never guesses the role from the person). */
+  reportedBy?: string | null;
+  reportedByRole?: "teacher" | "admin" | null;
 }
 
 /** LESSON-RULES: an entry of the journal of the history (`source: "audit"`): «оформлен задним числом», «отметки исправлены», «добавил урок в расписание». */
@@ -236,6 +239,8 @@ export interface AuditEntryItem {
   reason: string | null;
   /** The server's sentence. */
   text: string;
+  /** May the caller return this lesson to the marking (the lesson is held, its month is open, the caller has the money right)? The server says it; null for an entry that is not a lesson held (`lesson_added`). */
+  canReturn?: boolean | null;
 }
 
 /** A row of the list of «Замены»: a request, a waiting cancellation, an entry of the journal. */

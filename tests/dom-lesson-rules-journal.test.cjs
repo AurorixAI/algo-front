@@ -5,16 +5,21 @@ const test = require("node:test");
 const { setup } = require("./helpers/money2-w2.cjs");
 const { openPage } = require("./helpers/dom-page.cjs");
 const { layoutProbe } = require("./helpers/layout-probe.cjs");
-const { answer, WORLD_DAY, plain } = require("./helpers/lesson-rules-answers.cjs");
+const { answer, WORLD_DAY, WORLD_TEACHER_ID, plain } = require("./helpers/lesson-rules-answers.cjs");
 
 const ctx = setup(test);
 const JOURNAL = answer("journal_teacher");
-const TEACHER = { id: "85364d94-c8fb-5916-ae84-9583524e23fd", role: "teacher", org_role: "teacher" };
+const TEACHER = { id: WORLD_TEACHER_ID, role: "teacher", org_role: "teacher" };
 const STUDENTS = answer("dry_run_confirm_centre").deductions.map((d, index) => {
   const [last, first] = d.name.split(" ");
   return { id: d.studentId, first_name: first, last_name: last, full_name: d.name, class_level: 7, status: "active", display_id: `AL7-00${index + 1}`, student_phone: null, joined_at: "2026-09-01", last_theta: null, last_level: null };
 });
 const noise = (errors) => errors.filter((text) => !/404|Failed to load resource|409|422|500/.test(text));
+/** Waits (with a limit) for a state of the calls the test wrote down - no fixed pause. */
+async function until(condition, limitMs = 5000) {
+  const stop = Date.now() + limitMs;
+  while (!condition() && Date.now() < stop) await new Promise((resolve) => setTimeout(resolve, 25));
+}
 const MENU_OLD = 'th[data-lesson-key="2026-11-02_lesson-mon"] [data-column-menu-trigger]';
 
 function serve(extra) {
@@ -102,11 +107,64 @@ test("375: the journal of a group on a phone - the first column of a lesson is w
   await page.close();
 });
 
-test("a lesson that is cancelled or still to come has no lock line: the flags matter for a held lesson only", async () => {
+test("a lesson that is cancelled or still to come has no lock line: the flags matter for a held lesson only; a cancellation the teacher may take back (canWithdraw true) has the one action «Отозвать отмену»", async () => {
   const { page } = await open(1280);
-  for (const key of ["2026-11-11_lesson-wed", "2026-11-16_lesson-mon", "2026-11-18_lesson-wed", "2026-11-23_lesson-mon"]) {
+  // the real journal: 11.11 and 16.11 are decided, 18.11 waits but its window passed (canWithdraw false): no «⋯»; 23.11 waits and the server says canWithdraw true: the «⋯» holds ONE action
+  for (const key of ["2026-11-11_lesson-wed", "2026-11-16_lesson-mon", "2026-11-18_lesson-wed"]) {
     assert.equal(await page.locator(`th[data-lesson-key="${key}"] [data-column-menu-trigger]`).count(), 0, key);
   }
+  const waiting = JOURNAL.lessons.filter((l) => l.waiting === true);
+  assert.deepEqual(waiting.map((l) => [l.date, l.canWithdraw]), [["2026-11-18", false], ["2026-11-23", true]], "the real answer");
+  const trigger = page.locator('th[data-lesson-key="2026-11-23_lesson-mon"] [data-column-menu-trigger]');
+  assert.equal(await trigger.count(), 1);
+  await trigger.evaluate((el) => el.click());
+  const items = await page.locator('[role="menuitem"]').allTextContents();
+  assert.equal(items.length, 1, "the one action");
+  assert.ok(plain(items[0]).startsWith("Отозвать отмену"), items[0]);
+  assert.equal(await page.getAttribute('[data-testid="menu-withdraw"]', "aria-label"), "Отозвать отмену урока: Математика 7, пн, 23.11, 10:00–11:30", "named by the lesson (the one name of a lesson, lessonLabel)");
+  await page.close();
+});
+
+for (const width of [1280, 375]) {
+  test(`${width}: «Отозвать отмену» in the column of the journal: the server's road with the lesson and expectedKind, a toast, the journal and the badge are read again`, async () => {
+    const run = await open(width, (r) => {
+      if (r.method === "POST" && /\/lessons\/withdraw-cancellation$/.test(r.path)) return { json: { ok: true, restored: true, lessonId: "lesson-mon", lessonDate: "2026-11-23", previousKind: "unconfirmed", returnedToReview: true } };
+      return null;
+    });
+    const { page, calls } = run;
+    const before = calls.filter((c) => /\/attendance$/.test(c.path) && c.method === "GET").length;
+    await page.locator('th[data-lesson-key="2026-11-23_lesson-mon"] [data-column-menu-trigger]').evaluate((el) => el.click());
+    await page.click('[data-testid="menu-withdraw"]');
+    await page.waitForSelector("text=Отмена отозвана");
+    const sent = calls.filter((c) => c.method === "POST" && /withdraw-cancellation/.test(c.path));
+    assert.equal(sent.length, 1);
+    assert.deepEqual(sent[0].body, { lessonId: "lesson-mon", lessonDate: "2026-11-23", expectedKind: "unconfirmed" });
+    await until(() => calls.filter((c) => /\/attendance$/.test(c.path) && c.method === "GET").length > before);
+    assert.ok(calls.filter((c) => /\/attendance$/.test(c.path) && c.method === "GET").length > before, "the journal is read again");
+    assert.ok(calls.some((c) => /\/substitutions\/summary/.test(c.path)), "the badge of «Замены» is read again");
+    await page.close();
+  });
+}
+
+test("«Отозвать отмену» refused by the server (the real ALREADY_DECIDED of the road): the toast says the server's sentence, the journal is read again, nothing is sent twice", async () => {
+  const real = answer("refusals").already_decided;
+  const run = await open(1280, (r) => (r.method === "POST" && /withdraw-cancellation/.test(r.path) ? { status: 409, json: real } : null));
+  const { page, calls } = run;
+  const before = calls.filter((c) => /\/attendance$/.test(c.path) && c.method === "GET").length;
+  await page.locator('th[data-lesson-key="2026-11-23_lesson-mon"] [data-column-menu-trigger]').evaluate((el) => el.click());
+  await page.click('[data-testid="menu-withdraw"]');
+  await page.waitForSelector(`text=${real.detail.message}`);
+  assert.equal(calls.filter((c) => c.method === "POST" && /withdraw-cancellation/.test(c.path)).length, 1);
+  await until(() => calls.filter((c) => /\/attendance$/.test(c.path) && c.method === "GET").length > before);
+  assert.ok(calls.filter((c) => /\/attendance$/.test(c.path) && c.method === "GET").length > before, "the journal is read again after the refusal: the lesson is no longer waiting for him");
+  await page.close();
+});
+
+test("the head of the column of a waiting cancellation says WHO wrote it by the words of the server (reportedBy, reportedByRole), never «Преподаватель сообщил» of its own", async () => {
+  const { page } = await open(1280);
+  const hint = await page.getAttribute('th[data-lesson-key="2026-11-23_lesson-mon"]', "title");
+  assert.equal(hint, "Сообщил: Эргашев К., преподаватель. Отмену подтвердит владелец или администратор с доступом к деньгам");
+  assert.ok(!/Преподаватель сообщил/.test(hint));
   await page.close();
 });
 

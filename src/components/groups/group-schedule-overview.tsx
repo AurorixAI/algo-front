@@ -43,6 +43,7 @@ import { outOfPlan, todayPlanLines } from "@/lib/schedule-plan";
 import { canManageMoney } from "@/lib/money-effects";
 import { addedByLine, assignActionLabel, lessonHasStarted, pastMarkLockReason, assignLockReason, lessonTitle, roomLine, scheduleCardActions, movedFromText, sheetNotes, teacherLine } from "@/lib/schedule-card-actions";
 import { Button } from "@/components/ui/button";
+import { waitingLessonHint } from "@/lib/lesson-rules";
 
 type ScheduleStatus = {
   label: string;
@@ -71,6 +72,7 @@ function presentationFor(
   today: string,
   moved = false,
   cancelKind: string | null = null,
+  lesson: Pick<Lesson, "reportedBy" | "reportedByRole"> | null = null,
 ): ScheduleStatus {
   if (moved) {
     return {
@@ -91,7 +93,7 @@ function presentationFor(
   if (status === "cancelled") {
     // LESSON-RULES: the cancellation of a past lesson that waits for the owner says so on the card and in the sheet
     if (cancelKind === "unconfirmed") {
-      return { label: WAITING_CANCEL_LABEL, description: "Преподаватель сообщил, что урока не было: отмену подтвердит владелец или администратор с доступом к деньгам", badgeClassName: "bg-amber-50 text-amber-800 border-amber-200", icon: XCircle };
+      return { label: WAITING_CANCEL_LABEL, description: waitingLessonHint(lesson), badgeClassName: "bg-amber-50 text-amber-800 border-amber-200", icon: XCircle };
     }
     return {
       label: "Не состоялся",
@@ -438,7 +440,7 @@ export function GroupScheduleOverview({ groupId, groupName = null, viewerRole = 
                         const outcome = lesson.substitutionOutcome;
                         const moved = lessonState === "cancelled" && outcome?.kind === "rescheduled";
                         const off = outOfPlan({ status: lessonState, outcome });
-                        const state = presentationFor(lessonState, lesson.date, today, moved, lessonState === "cancelled" ? attendance?.cancellationKinds?.[lessonKey(lesson)] ?? null : null);
+                        const state = presentationFor(lessonState, lesson.date, today, moved, lessonState === "cancelled" ? attendance?.cancellationKinds?.[lessonKey(lesson)] ?? null : null, lesson);
                         const StateIcon = state.icon;
                         const startTime = lesson.startTime || lesson.start_time || "—";
                         const cancellationReason = attendance?.cancellationReasons?.[key];
@@ -506,7 +508,7 @@ export function GroupScheduleOverview({ groupId, groupName = null, viewerRole = 
         const info = lesson ? attendance?.lessonTeachers?.[key || lessonKeyOf(lesson.date, lesson.id)] : undefined;
         const outcome = lesson?.substitutionOutcome;
         const moved = lessonState === "cancelled" && outcome?.kind === "rescheduled";
-        const presentation = lesson ? presentationFor(lessonState, lesson.date, today, moved, lessonState === "cancelled" ? attendance?.cancellationKinds?.[key] ?? null : null) : null;
+        const presentation = lesson ? presentationFor(lessonState, lesson.date, today, moved, lessonState === "cancelled" ? attendance?.cancellationKinds?.[key] ?? null : null, lesson) : null;
         const cardInput = lesson ? { role: viewerRole, archived, state: lessonState, date: lesson.date, today, hasTeacherInfo: Boolean(info), startTime: lesson.startTime || lesson.start_time, endTime: lesson.endTime, recurring: seriesRunning(lesson), moved, cancelKind: attendance?.cancellationKinds?.[key] ?? null, moneyRight: canManageMoney(user), undoDecision: canUndoDecision(lesson, canManageMoney(user)) } : null;
         const actions = cardInput ? scheduleCardActions(cardInput) : [];
         const markLock = cardInput ? pastMarkLockReason(cardInput) : null;

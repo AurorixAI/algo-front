@@ -26,7 +26,7 @@ import {
 import { cancelEntryPoint, lessonPanelBanner } from "./lesson-panel-view";
 import { lessonBelongsToOther, teacherInfoOfOccurrence } from "./lesson-teacher";
 import type { LessonTeacherInfo } from "./ops-b-types";
-import { lessonTooOldText, lessonWindowLock, type LessonWindowFlags, NO_STUDENTS_FINISH_TEXT, NO_STUDENTS_START_TEXT } from "./ops-errors";
+import { lessonTooOldText, lessonWindowLock, type LessonWaitingFlags, type LessonWindowFlags, NO_STUDENTS_FINISH_TEXT, NO_STUDENTS_START_TEXT } from "./ops-errors";
 import { reasonProblemFor } from "./reason-rules";
 import { isOwnOneOff, teacherCancelOffer, type TeacherCancelOffer } from "./schedule-card-actions";
 import { getLessonTimeStatus } from "./schedule-time";
@@ -36,12 +36,13 @@ import { sendTeacherCancel } from "./teacher-cancel";
 import { useLessonMarksOps } from "./use-lesson-marks-ops";
 import { useMovedLessonTarget } from "./moved-lesson";
 import { useNow } from "./use-now";
+import { useWithdrawCancellation } from "./use-withdraw-cancellation";
 import { getDataLoadErrorMessage } from "@/components/ui/data-load-error";
 import type { LessonCancelBinding } from "@/components/substitutions/lesson-cancel-panel";
 import { teacherLessonMenuItems, useTeacherLessonActions } from "@/components/substitutions/teacher-lesson-controls";
 
 /** What the panel shows of a lesson: a lesson of today's list, a card of the week and the lesson rebuilt from a task of the server are all of this shape. */
-export interface TeacherPanelLesson extends PanelLesson, LessonWindowFlags {
+export interface TeacherPanelLesson extends PanelLesson, LessonWindowFlags, LessonWaitingFlags {
   id: string;
   groupId: string;
   groupName: string;
@@ -126,6 +127,8 @@ export interface TeacherLessonPanelHost<L extends TeacherPanelLesson> {
   openMoved?: (lesson: L) => void;
   /** «Урока не было» of a past lesson went through (the notes of the server, if any); the screen reloads what it shows. */
   onMissedCancelled: (notes: string[]) => void;
+  /** The teacher took his waiting cancellation back from the panel of the lesson: the screen says it (the text is the toast) and reloads what it shows. */
+  onCancellationWithdrawn: (text: string) => void;
 }
 
 /** Everything the screen asks about the lesson of the open panel; the one reading of the rules. */
@@ -765,6 +768,15 @@ export function useTeacherLessonPanel<L extends TeacherPanelLesson>(host: Teache
     ? getSubsequentStartedLesson(activeLesson)
     : null;
 
+  const withdrawal = useWithdrawCancellation({
+    say: (text, tone) => { if (tone === "success") hostRef.current.onCancellationWithdrawn(text); else hostRef.current.notifyRefusal("Отмену не удалось отозвать", text); },
+    reload: () => undefined,
+  });
+  const withdrawActiveCancellation = () => {
+    if (!activeLesson || !activeLessonDate) return;
+    void withdrawal.withdraw({ groupId: activeLesson.groupId, lessonId: activeLesson.id, lessonDate: activeLessonDate });
+  };
+
   /** The banner of the overview: one order for both screens (`lessonPanelBanner`). */
   const banner = lessonPanelBanner({
     status: activeInstanceStatus,
@@ -822,6 +834,8 @@ export function useTeacherLessonPanel<L extends TeacherPanelLesson>(host: Teache
     // the reconciliation of a past lesson that was never started
     missedLessonAction, setMissedLessonAction, openMissedLesson, isCancellingMissedLesson, setIsCancellingMissedLesson, missedLessonCancellationReason, setMissedLessonCancellationReason,
     missedLessonError, missedLessonInfo, setMissedLessonError, isResolvingMissedLesson, handleReconcileMissedLesson, handleCancelMissedLesson,
+    // «Отозвать отмену» of the lesson that waits (the server's `canWithdraw` of THIS lesson shows the button)
+    withdrawActiveCancellation, withdrawBusy: withdrawal.busyKey !== null,
   };
 }
 

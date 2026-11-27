@@ -27,6 +27,7 @@ import {
 import { createRequestSequence } from "@/lib/request-sequence";
 import { EmptyState, TableHeader } from "@/components/attendance/table-chrome";
 import { CancelMissedLessonModal, type CancelMissedTarget } from "@/components/attendance/cancel-missed-lesson-modal";
+import { missedCancelToast, type TeacherCancelNotes } from "@/lib/teacher-cancel";
 import { RowMenu, type RowMenuItem } from "@/components/ui/row-menu";
 import { useToast } from "@/components/ui/toast";
 import { useAuthStore } from "@/lib/store";
@@ -184,14 +185,15 @@ export function OpenLessonsView({ groupsBasePath }: { groupsBasePath: string }) 
     ];
   };
 
-  const onCancelled = async (done: CancelMissedTarget, notes: string[]) => {
+  const onCancelled = async (done: CancelMissedTarget, notes: TeacherCancelNotes) => {
     // The row goes away at once; the re-read confirms it and refreshes the badge
     // (the badge catches up by itself, so it must not trigger a second re-read).
     handledBadgeRef.current = useExcuseBadge.getState().openLessons;
     setByMonth((previous) => (previous ? withoutOpenLessons(previous, (row) => (
       row.actionType === "missed" && row.groupId === done.groupId && row.lessonId === done.lessonId && row.lessonDate === done.lessonDate
     )) : previous));
-    showToast(`Урок ${formatWeekdayDate(done.lessonDate)} отмечен как не состоявшийся`, notes.length ? "warning" : "success", notes);
+    const toast = missedCancelToast(formatWeekdayDate(done.lessonDate), notes);
+    showToast(toast.title, toast.tone, notes);
     await load({ silent: true });
   };
 

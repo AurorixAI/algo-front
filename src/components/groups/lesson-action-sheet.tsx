@@ -385,7 +385,7 @@ export function LessonActionSheet({
             </div>
           )}
 
-          {mode === "menu" && lesson && <SheetWaitingNotice kind={cancellationKind} groupId={groupId} title={title} lesson={lesson} moneyRight={moneyRight} onDecided={(outcome) => onChanged(waitingDecidedToast(outcome))} onAlreadyDecided={() => onReload?.()} />}
+          {mode === "menu" && lesson && <SheetWaitingNotice kind={cancellationKind} groupId={groupId} title={title} lesson={lesson} moneyRight={moneyRight} onDecided={(outcome) => onChanged(waitingDecidedToast(outcome))} onAlreadyDecided={() => onReload?.()} onWithdrawn={(text) => onChanged(text)} onWithdrawFailed={() => onReload?.()} />}
           {mode === "menu" && changeKind && (
             <button type="button" data-testid="sheet-change-kind" onClick={() => open("kind")} className={ACTION_BUTTON}>
               <Pencil className="h-4 w-4 text-slate-500" />{CHANGE_KIND_LABEL}

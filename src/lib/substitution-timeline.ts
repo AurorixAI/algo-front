@@ -125,7 +125,7 @@ function lineOf(event: SubstitutionEvent, record: SubstitutionItem, current: Sub
       // LESSON-RULES: the teacher of a PAST lesson reports it, the owner confirms - the history says what was reported (a lesson that is not yet decided has no kind to name)
       const reported = isTeacherCancel(record) && (record.outcome === "cancel_waiting" || record.outcome === "cancelled_centre" || record.outcome === "cancelled_holiday");
       const kind = record.outcome === "cancel_waiting" || snapshot.cancellationKind === "unconfirmed" ? null : kindLabel(snapshot.cancellationKind);
-      return { title: reported ? "Преподаватель сообщил, что урока не было" : isTeacherCancel(record) ? "Урока не было" : "Урок отменён", details: [reason, kind ?? ""].filter(Boolean) };
+      return { title: reported ? "Сообщено, что урока не было" : isTeacherCancel(record) ? "Урока не было" : "Урок отменён", details: [reason, kind ?? ""].filter(Boolean) };
     }
     case "confirmed": {
       // LESSON-RULES: the owner (or the administrator with the money right) decided a waiting cancellation: one event on the record of the cancellation

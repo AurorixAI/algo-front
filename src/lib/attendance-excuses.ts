@@ -16,6 +16,7 @@ export type AdminLessonAction =
   | "correct"        // "Исправить отметки"
   | "return"         // "Вернуть урок" (Money-1 A2): a held lesson goes back to «не проведён»
   | "return_review"  // "Вернуть на отметку" (Money-1 A2): «Урока не было» said by mistake for a lesson that has begun
+  | "withdraw"       // "Отозвать отмену" (LESSON-RULES): the AUTHOR takes back his waiting cancellation, where the server says `canWithdraw`
   | "decide_waiting" // "Решить" (LESSON-RULES): the cancellation of a past lesson waits for the owner - the same window of three outcomes as in «Замены»
   | "undo_decision"; // "Отменить решение об оплате" (Money-1 A3): the decision on an additional lesson is taken back
 
@@ -42,6 +43,8 @@ export interface AdminActionRights {
    * as well as one of an earlier day; the server tells them apart by the start of the lesson, not by the date (`restore_lesson`: `starts_at <= now`).  Absent: not known - today stays «not yet».
    */
   started?: boolean;
+  /** The server's word for THIS lesson (`canWithdraw`): the viewer wrote the waiting cancellation and may take it back; only `true` offers «Отозвать отмену». */
+  canWithdraw?: boolean | null;
 }
 
 /**
@@ -60,7 +63,7 @@ export function lessonAdminActions(state: string, date: string, today: string, r
   if (state === "completed") return rights.moneyRight ? ["correct", "return", ...(rights.undoDecision ? ["undo_decision" as const] : [])] : [];
   if (state === "cancelled") {
     // LESSON-RULES: a cancellation that waits for the owner is decided (the window has «Урок был» inside), not «returned» or «changed»; only the money right decides
-    if (rights.cancelKind === "unconfirmed") return rights.moneyRight ? ["decide_waiting"] : [];
+    if (rights.cancelKind === "unconfirmed") return rights.moneyRight ? ["decide_waiting", ...(rights.canWithdraw === true ? ["withdraw" as const] : [])] : rights.canWithdraw === true ? ["withdraw"] : [];
     const begun = date < today || (date === today && rights.started === true);
     return rights.moneyRight && begun && !rights.moved && rights.cancelKind !== "day_off" ? ["return_review"] : [];
   }
@@ -74,7 +77,9 @@ export function lessonAdminActions(state: string, date: string, today: string, r
  * Money-1 A5: the teacher of a lesson corrects the marks of his OWN held lesson within the window of the centre, while the month is open, with a reason (the server judges the month and the days:
  * LESSON_TOO_OLD, PERIOD_CLOSED).  The journal offers the one action «Исправить отметки»; nothing else of the administrator's menu.
  */
-export function lessonTeacherActions(state: string, own: boolean, flags?: LessonWindowFlags | null): AdminLessonAction[] {
+export function lessonTeacherActions(state: string, own: boolean, flags?: (LessonWindowFlags & { canWithdraw?: boolean | null }) | null): AdminLessonAction[] {
+  // the waiting cancellation he wrote: the server says whether he may take it back (the window and the month are judged there)
+  if (state === "cancelled" && flags?.canWithdraw === true) return ["withdraw"];
   // LESSON-RULES C10: the server marks every lesson (`canActSelf`, `monthClosed`): a lesson he may not act on offers nothing; without flags the action is offered and the server judges
   if (lessonWindowLock(flags)) return [];
   return state === "completed" && own ? ["correct"] : [];

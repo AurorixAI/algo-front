@@ -36,6 +36,8 @@ export function lessonTooOldText(windowDays?: number | null): string {
 export const LESSON_TOO_OLD_HINT = "Обратитесь к администратору";
 
 /** C10: the flags of the window the server puts on EVERY lesson of the journal and of the schedule (for a teacher; the same function as its refusal). */
+/** What the server says of a lesson whose cancellation WAITS for the owner (C13): `waiting`, who wrote it, and whether THIS viewer may take it back. */
+export interface LessonWaitingFlags { waiting?: boolean | null; reportedBy?: string | null; reportedByRole?: string | null; canWithdraw?: boolean | null }
 export interface LessonWindowFlags { canActSelf?: boolean | null; monthClosed?: boolean | null; windowDays?: number | null }
 export const MONTH_CLOSED_TEXT = "Месяц закрыт — обратитесь к владельцу";
 /** The line under a lesson a teacher may NOT act on himself, or null when he may (or the server sent no flags: the server judges, as before). A closed month is said first. */

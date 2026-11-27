@@ -21,7 +21,7 @@ export interface LessonCancelBinding {
  * The minimum of the reason is a quiet grey line from the start (as on the other forms); it turns red only after an attempt to send a short reason or after
  * the person leaves the field - the button stays pressable, so the attempt is answered with the reason, not with a dead button.
  */
-export function LessonCancelPanel({ date, oneOff = false, autoFocus = false, binding, reason, onReason, busy, onConfirm, onBack, pastLesson = false, consequence = null }: {
+export function LessonCancelPanel({ date, oneOff = false, autoFocus = false, binding, reason, onReason, busy, onConfirm, onBack, pastLesson = false, consequence = null, waiting = null }: {
   /** YYYY-MM-DD */
   date: string;
   /** W1 S27: the teacher cancels the one-off lesson he added himself (not «урока не было»). */
@@ -41,8 +41,14 @@ export function LessonCancelPanel({ date, oneOff = false, autoFocus = false, bin
   pastLesson?: boolean;
   /** The sentence of the SERVER about what happens next (`GET …/cancel-consequence`, read by the window that holds the panel); null while it is not known - the cancellation is never blocked by it. */
   consequence?: string | null;
+  /**
+   * What the server says of THIS cancellation (`waiting` of `GET …/cancel-consequence`): `true` - it only reports, the owner confirms (the quiet blue window «Сообщить»); `false` - the centre switched the
+   * confirmation off, the cancellation is an ordinary one («Урока не было», red) with the sentence of the server; `null` - not known yet: the window is the reporting one and the server still decides.
+   */
+  waiting?: boolean | null;
 }) {
-  const past = pastLesson && !oneOff;
+  const past = pastLesson && !oneOff && waiting !== false;
+  const hasSentence = pastLesson && !oneOff;
   const problem = reasonProblemFor("cancel", reason);
   const hintId = useId();
   const errorId = useId();
@@ -93,7 +99,7 @@ export function LessonCancelPanel({ date, oneOff = false, autoFocus = false, bin
         <p id={errorId} data-testid="reason-error" aria-live="polite" className={showProblem ? "mt-1.5 text-xs font-medium text-rose-700" : undefined}>{showProblem ? problem : null}</p>
       </div>
       {/* the sentence of the SERVER about what happens next (it is the owner who decides the cancellation); plain text, not a muted note */}
-      {past && consequence && <p data-testid="past-cancel-consequence" className="text-sm leading-6 text-slate-800">{consequence}</p>}
+      {hasSentence && consequence && <p data-testid="past-cancel-consequence" className="text-sm leading-6 text-slate-800">{consequence}</p>}
       <div className={past ? "flex flex-col-reverse gap-2 sm:flex-row sm:justify-end" : "flex justify-end gap-2"}>
         <button type="button" onClick={onBack} disabled={busy} className={past ? "min-h-10 rounded-lg px-3 py-1.5 text-sm font-semibold text-slate-600 hover:bg-slate-50" : "rounded-lg px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-white"}>Назад</button>
         <Button

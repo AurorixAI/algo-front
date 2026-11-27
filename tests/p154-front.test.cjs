@@ -318,10 +318,9 @@ test("A: the counter of the tab and of the menu is the requests plus the lessons
   assert.equal(useSubstitutionBadge.getState().pending, 3);
   useSubstitutionBadge.getState().reset();
   const page = read("src/components/substitutions/substitutions-page.tsx");
-  assert.match(page, /tabLabel\("pending", waitingCount\)/);
+  // the number of the tab (the server's waitingTotal) and the empty text that is not said while lines of money wait are BEHAVIOUR now: dom-lesson-rules-behaviour / dom-lesson-rules-waiting
   assert.match(page, /<OneOffDecisionsBlock/);
   assert.match(page, /oneOffDecisionsTotal: decisionsTotalRef\.current/);
-  assert.match(page, /decisionsOnly \|\| blockWaiting\.length > 0 \? null : .*<EmptyState/, "the empty text is not said while rows of money wait");
 });
 
 test("A: the filter and the search of the page narrow the rows of money", () => {
