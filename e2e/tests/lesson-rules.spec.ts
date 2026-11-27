@@ -1,7 +1,7 @@
 import { test, expect } from "../support/fixtures";
 import { Org, type GroupInfo, type LessonInfo, type Staff } from "../support/api";
 import { addDays, businessNow, weekdayOf } from "../support/time";
-import { expectNoHorizontalScroll, money } from "../support/ui";
+import { expectNoHorizontalScroll, moneyPattern } from "../support/ui";
 
 /**
  * LESSON-RULES (26.11): «Урока не было» of a PAST lesson said by a teacher waits for the owner.
@@ -156,12 +156,16 @@ function lessonsInPeriod(start: string, weekdays: number[]): number {
   return count;
 }
 
+/** The four numbers of an account that a waiting / withdrawn cancellation must not move - compared field by field (the rest of the summary may carry fields that change for their own reasons). */
+const accountOf = (summary: { charged: number; paid?: number; recalculated: number; unpaid: number }) => ({ charged: summary.charged, paid: summary.paid, recalculated: summary.recalculated, unpaid: summary.unpaid });
+
 async function moneyWorld(label: string, { adminWithoutRight = false } = {}) {
   const centre = await Org.create(`Деньги правил ${label}`);
   const today = businessNow();
   const weekdays = threeWeekdays();
   const lessons = lessonsInPeriod(today.date, weekdays);
-  expect([12, 13]).toContain(lessons);
+  // N (the lessons of the period) depends on the month and reaches 14: the sums below are counted from N, never from a fixed number of lessons
+  expect(lessons).toBeGreaterThan(0);
   const teacher = await centre.addStaff("teacher", `Отчитавшийся${label}`);
   const group = await centre.createGroup({ name: `Группа Д${label}`, teacherId: teacher.userId });
   await centre.setGroupPrice(group.id, lessons * PER_LESSON);
@@ -176,7 +180,7 @@ async function moneyWorld(label: string, { adminWithoutRight = false } = {}) {
   if (adminWithoutRight) await centre.setPaymentSettings({ admin_can_manage: false });
   const statement = async () => {
     const out = await centre.owner.api.get(`/auth/org/memberships/${membership}/statement`);
-    return { summary: out.summary as { recalculated: number; unpaid: number; charged: number; reconciles: boolean }, recalcRows: (out.rows as Array<{ type: string; details?: { recalc?: { amount: number } } }>).filter((row) => row.type === "recalc") };
+    return { summary: out.summary as { recalculated: number; unpaid: number; charged: number; paid?: number; reconciles: boolean }, recalcRows: (out.rows as Array<{ type: string; details?: { recalc?: { amount: number } } }>).filter((row) => row.type === "recalc") };
   };
   return { centre, teacher, group, lesson, student, admin, statement };
 }
@@ -185,7 +189,7 @@ const reportBy = (who: Staff, group: GroupInfo, lesson: LessonInfo, reason: stri
   who.api.post(`/auth/org/groups/${group.id}/attendance/reconcile/cancel`, { lessonDate: lesson.date, lessonId: lesson.id, cancellationReason: reason });
 
 const OUTCOMES = [
-  { key: "centre", label: "По вине центра", button: "Подтвердить: по вине центра", caption: new RegExp(`Перерасчёт 1 ученику по ${money(PER_LESSON).source} сум, всего ${money(PER_LESSON).source} сум`), toast: "Отмена подтверждена: по вине центра", recalculated: PER_LESSON },
+  { key: "centre", label: "По вине центра", button: "Подтвердить: по вине центра", caption: new RegExp(`Перерасчёт\\s+1\\s+ученику\\s+по\\s+${moneyPattern(PER_LESSON)}\\s+сум,\\s+всего\\s+${moneyPattern(PER_LESSON)}\\s+сум`), toast: "Отмена подтверждена: по вине центра", recalculated: PER_LESSON },
   { key: "holiday", label: "Праздник, выходной", button: "Подтвердить: праздник, выходной", caption: /Ученикам: без перерасчёта/, toast: "Отмена подтверждена: праздник, выходной", recalculated: 0 },
   { key: "held", label: "Урок был", button: "Вернуть урок на отметку", caption: /Отмена снимается/, toast: "Урок возвращён на отметку", recalculated: 0 },
 ] as const;
@@ -199,7 +203,7 @@ for (const outcome of OUTCOMES) {
     expect(before.summary.recalculated).toBe(0);
     await reportBy(world.teacher, world.group, world.lesson, "Отключили свет");
     const waiting = await world.statement();
-    expect(waiting.summary, "while the cancellation WAITS no account moves").toEqual(before.summary);
+    expect(accountOf(waiting.summary), "while the cancellation WAITS no account moves").toEqual(accountOf(before.summary));
     expect(waiting.recalcRows).toHaveLength(0);
 
     const ownerPage = await signIn(world.centre.owner);
@@ -235,7 +239,7 @@ test("roles: an administrator WITHOUT the money right sees «решает вла
   const admin = world.admin!;
   const before = await world.statement();
   await reportBy(admin, world.group, world.lesson, "Преподаватель заболел");   // a PAST lesson cancelled by a role without the money right waits for the owner
-  expect((await world.statement()).summary, "waiting: no account moves").toEqual(before.summary);
+  expect(accountOf((await world.statement()).summary), "waiting: no account moves").toEqual(accountOf(before.summary));
 
   const adminPage = await signIn(admin);
   await adminPage.goto("/admin/substitutions");
@@ -255,7 +259,7 @@ test("roles: an administrator WITHOUT the money right sees «решает вла
   await ownerPage.goto("/owner/substitutions");
   await expect(ownerPage.getByRole("tab", { name: /Ждут решения \(0\)/ })).toBeVisible();
   await expect(ownerPage.getByTestId("waiting-row")).toHaveCount(0);
-  expect((await world.statement()).summary, "the withdrawn cancellation moved nothing").toEqual(before.summary);
+  expect(accountOf((await world.statement()).summary), "the withdrawn cancellation moved nothing").toEqual(accountOf(before.summary));
 });
 
 test("@mobile the journal on a phone: the owner decides a waiting cancellation from the column menu of the lesson - the window fits the screen and the money is the server's", async ({ signIn }) => {
@@ -271,7 +275,7 @@ test("@mobile the journal on a phone: the owner decides a waiting cancellation f
   await page.getByTestId("menu-decide-waiting").click();
   const dialog = page.getByRole("dialog");
   await dialog.getByText("По вине центра", { exact: true }).click();
-  await expect(dialog.getByTestId("waiting-caption")).toContainText(new RegExp(`всего ${money(PER_LESSON).source} сум`));
+  await expect(dialog.getByTestId("waiting-caption")).toContainText(new RegExp(`всего\\s+${moneyPattern(PER_LESSON)}\\s+сум`));
   await expectNoHorizontalScroll(page);
   const box = await dialog.getByTestId("waiting-confirm").boundingBox();
   expect(box, "the button has a box").not.toBeNull();
