@@ -23,6 +23,8 @@ type PreviewState = { status: "loading" } | { status: "ready"; preview: WaitingP
 
 const DECIDED_FALLBACK = "Отмену уже решил другой человек.";
 const PREVIEW_ERROR = "Не удалось посчитать последствия. Повторите попытку.";
+/** The press the server answered with `changed: false`: the cancellation already HAS this kind (the person did not decide it - it was so). */
+export const DECIDED_THE_SAME = "Уже было решено так же.";
 
 /** The refusal «уже решено»: the server's own sentence («Отмену подтвердил Тимур Алиев (администратор) в 12:40: по вине центра.»). */
 function alreadyDecidedMessage(failure: unknown): string | null {
@@ -54,9 +56,13 @@ export function WaitingCancelDialog({ item, onClose, onDecided, onAlreadyDecided
   const token = useRef(0);
   const latest = useRef({ onAlreadyDecided });
   latest.current = { onAlreadyDecided };
+  // the window depends on WHICH lesson it is (the key), never on the identity of `item`: the parent builds it anew on every render (and reads its schedule again after «уже решено»)
+  const itemRef = useRef(item);
+  itemRef.current = item;
   const key = item ? `${item.group.id}|${item.lesson.lessonId}|${item.lesson.date}` : null;
 
   const ask = useCallback(() => {
+    const item = itemRef.current;
     if (!item) return;
     const mine = ++token.current;
     setState({ status: "loading" });
@@ -78,7 +84,7 @@ export function WaitingCancelDialog({ item, onClose, onDecided, onAlreadyDecided
         if (closed) { setState({ status: "closed", info: closed }); return; }
         setState({ status: "error", message: failure instanceof Error && failure.message ? failure.message : PREVIEW_ERROR });
       });
-  }, [item]);
+  }, []);
 
   useEffect(() => {
     token.current += 1;
@@ -95,8 +101,8 @@ export function WaitingCancelDialog({ item, onClose, onDecided, onAlreadyDecided
   const chosen = options.find((option) => option.key === outcome) ?? null;
   // «Урок был» is not offered to a lesson that cannot be given back: a chosen one that vanished is no choice
   const picked = chosen ? chosen.key : null;
-  const needsPreview = picked === "centre" || picked === "held";
-  const ready = picked !== null && (!needsPreview || state.status === "ready");
+  // every outcome waits for the sentence of the server: the person confirms what he has READ (no button without the preview, whatever the outcome)
+  const ready = picked !== null && state.status === "ready";
 
   const confirm = async () => {
     if (!item || !picked || sending.current || !ready) return;
@@ -107,7 +113,9 @@ export function WaitingCancelDialog({ item, onClose, onDecided, onAlreadyDecided
       if (picked === "held") {
         await orgApi.restoreLesson(item.group.id, { lessonId: item.lesson.lessonId, lessonDate: item.lesson.date, reason: WAITING_HELD_REASON, expectedKind: "unconfirmed" });
       } else {
-        await orgApi.changeCancellationKind(item.group.id, { lessonDate: item.lesson.date, lessonId: item.lesson.lessonId, cancellationKind: picked, expectedKind: "unconfirmed" });
+        const out = await orgApi.changeCancellationKind(item.group.id, { lessonDate: item.lesson.date, lessonId: item.lesson.lessonId, cancellationKind: picked, expectedKind: "unconfirmed" });
+        // 200 `changed: false`: nothing was written - it was so already; the person is not told «решил я»
+        if (out && out.changed === false) { setDecidedBy(DECIDED_THE_SAME); onAlreadyDecided(); return; }
       }
       onDecided(picked);
       onClose();

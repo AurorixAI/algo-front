@@ -121,8 +121,8 @@ export interface WaitingPreview {
 }
 
 /**
- * What the answer of the dry run IS: the preview of the confirmation (`dry_run: true` and the numbers), an answer of a cancellation that somebody decided meanwhile (`changed: false` or no `dry_run` -
- * the server's sentence, when it sends one) or something else (a broken answer).  The shape is checked field by field, never assumed.
+ * What the answer of the dry run IS: the preview of the confirmation (`dry_run: true` and the numbers), an answer of a cancellation that somebody decided meanwhile (`changed: false` - the server's sentence, when it sends one) or
+ * something else (a broken answer: no `dry_run`, no `changed: false`).  The shape is checked field by field, never assumed.
  */
 export type PreviewVerdict = { kind: "preview"; preview: WaitingPreview } | { kind: "decided"; text: string } | { kind: "broken" };
 
@@ -154,7 +154,8 @@ export function previewVerdict(answer: unknown): PreviewVerdict {
       },
     };
   }
-  if (out.ok === true && (out.changed === false || out.dry_run !== true)) {
+  // «решил другой» is only what the server SAYS (`changed: false`); an answer that is neither a preview nor that is a broken one
+  if (out.changed === false) {
     const text = [out.message, out.consequence].find((value) => typeof value === "string" && value.trim());
     return { kind: "decided", text: typeof text === "string" ? text.trim() : "" };
   }
@@ -197,8 +198,9 @@ export function ownerDecidesLine(counts: { oneOffs: number; cancellations: numbe
 /** «Эргашев К. сообщил 24.11, что урока не было · пн, 23.11, Математика 7» - the quiet line of a waiting cancellation for who cannot decide it; the name is `reportedBy` of the server. */
 export function reportedLine(item: Pick<WaitingCancellationItem, "reportedBy" | "cancelledBy" | "cancelledAt" | "lesson" | "group">): string {
   const day = shortWhen(item.cancelledAt).split(" ")[0] ?? "";
-  const who = item.reportedBy || item.cancelledBy?.name || "Сообщили";
-  return `${who} сообщил ${day}, что урока не было · ${dayAndDateLabel(item.lesson.date)}, ${item.group.name}`;
+  const who = item.reportedBy || item.cancelledBy?.name;
+  // no name: the neutral sentence («Сообщено 24.11, что урока не было»), never «Сообщили сообщил»
+  return `${who ? `${who} сообщил` : "Сообщено"} ${day}, что урока не было · ${dayAndDateLabel(item.lesson.date)}, ${item.group.name}`;
 }
 
 // ── the list ──────────────────────────────────────────────────────────────────────────────────

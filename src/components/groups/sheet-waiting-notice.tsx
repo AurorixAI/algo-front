@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Chip } from "@/components/ui/chip";
 import { WaitingCancelDialog } from "@/components/substitutions/waiting-cancel-dialog";
 import { useSubstitutionBadge } from "@/lib/substitution-badge";
@@ -36,12 +36,19 @@ export function SheetWaitingNotice({ kind, groupId, title, lesson, moneyRight, o
     say: (text, tone) => { if (tone === "success") onWithdrawn(text); else { setProblem(text); onWithdrawFailed(); } },
     reload: () => undefined,
   });
+  // ONE object for one lesson: the window must not see a «new» lesson on every render of the sheet (that made it ask the server again and again)
+  const { id: lessonId, date, reportedBy, reportedByRole } = lesson;
+  const startTime = lesson.startTime || lesson.start_time || null;
+  const endTime = lesson.endTime || null;
+  const target = useMemo(() => (deciding
+    ? { group: { id: groupId, name: title }, lesson: { lessonId, date, startTime, endTime }, reportedBy: reportedBy ?? null, reportedByRole: reportedByRole ?? null }
+    : null), [deciding, groupId, title, lessonId, date, startTime, endTime, reportedBy, reportedByRole]);
   // the window outlives the mark of the lesson: when the schedule is read again after «уже решено» the lesson is no longer waiting, but the person still reads the sentence of the server
-  if (!isWaitingKind(kind) && !deciding) return null;
+  if (!isWaitingKind(kind) && !deciding && !problem) return null;
   const reported = reportedByText(lesson.reportedBy, lesson.reportedByRole);
   const decideWindow = (
     <WaitingCancelDialog
-      item={deciding ? { group: { id: groupId, name: title }, lesson: { lessonId: lesson.id, date: lesson.date, startTime: lesson.startTime || lesson.start_time || null, endTime: lesson.endTime || null } } : null}
+      item={target}
       onClose={() => setDeciding(false)}
       onDecided={(outcome) => { void useSubstitutionBadge.getState().refresh(true); onDecided(outcome); }}
       onAlreadyDecided={() => { void useSubstitutionBadge.getState().refresh(true); onAlreadyDecided(); }}
@@ -68,9 +75,9 @@ export function SheetWaitingNotice({ kind, groupId, title, lesson, moneyRight, o
             </div>
           )}
           {reported && <p data-testid="sheet-waiting-by" className="w-full text-sm text-slate-700">{reported}</p>}
-          {problem && <Notice variant="warning" role="alert" testId="sheet-withdraw-problem" className="w-full">{problem}</Notice>}
         </div>
       )}
+      {problem && <Notice variant="warning" role="alert" testId="sheet-withdraw-problem">{problem}</Notice>}
       {decideWindow}
     </>
   );

@@ -21,7 +21,7 @@ function PanelProbe({ lesson, groups, user, missedAction = null }: { lesson: any
     businessDate: "2026-11-26", groups, user, todayLessons: [], statusOfToday: () => "scheduled", hasSavedMarks: () => false,
     openActions: [], setOpenActions: () => undefined, openActionsKnown: true, retryOpenActions: () => undefined, lessonFromAction: lessonFromAttendanceAction,
     onWritten: () => undefined, notifyRefusal: (notice: string, reason: string) => w.__log.push(`refused:${notice}:${reason}`), onMissedCancelled: (notes: string[]) => w.__log.push(`missed-cancelled:${notes.join("|")}`),
-    onCancellationWithdrawn: (text: string) => w.__log.push(`withdrawn:${text}`),
+    onCancellationWithdrawn: (text: string) => w.__log.push(`withdrawn:${text}`), reloadLessons: () => w.__log.push("lessons-reloaded"),
   } as never);
   const opened = React.useRef(false);
   React.useEffect(() => { if (!opened.current) { opened.current = true; if (missedAction) panel.openMissedLesson(missedAction); else panel.openLesson(lesson); } }, [lesson, missedAction, panel]);
@@ -30,6 +30,27 @@ function PanelProbe({ lesson, groups, user, missedAction = null }: { lesson: any
 
 const w = window as any;
 w.__log = [] as string[];
+
+/**
+ * The sheet inside a parent that draws again and again (a clock, a poll) and that, when the sheet says «уже решено» / a refused withdraw, reads its schedule again: the lesson is then NOT waiting any more and
+ * the parent hands the sheet a NEW lesson object on every draw (as the real sheet of the journal does).  `window.__renders` counts the draws of the parent.
+ */
+function SheetParent({ moneyRight, canWithdraw, reportedBy, reportedByRole }: { moneyRight: boolean; canWithdraw: boolean; reportedBy?: string; reportedByRole?: string }) {
+  const [kind, setKind] = React.useState<string>("unconfirmed");
+  const [draws, setDraws] = React.useState(0);
+  React.useEffect(() => { const timer = window.setInterval(() => setDraws((n) => n + 1), 40); return () => window.clearInterval(timer); }, []);
+  w.__renders = draws;
+  const reread = () => { w.__log.push("schedule-read"); void fetch("/auth/org/schedule-probe").catch(() => undefined).finally(() => setKind("centre")); };
+  return (
+    <div className="mx-auto max-w-sm p-4">
+      <SheetWaitingNotice
+        kind={kind} groupId="287049ea-7673-5f46-b17e-41e317fdd7f1" title="Математика 7" moneyRight={moneyRight}
+        lesson={{ id: "lesson-mon", date: "2026-11-23", startTime: "10:00", endTime: "11:30", canWithdraw, reportedBy, reportedByRole }}
+        onDecided={(outcome) => w.__log.push(`decided:${outcome}`)} onAlreadyDecided={reread} onWithdrawn={(text) => w.__log.push(`withdrawn:${text}`)} onWithdrawFailed={reread}
+      />
+    </div>
+  );
+}
 
 w.mount = (name: string, user: Record<string, unknown> = { role: "owner", org_role: "owner" }, props: any = {}) => {
   w.__user = { id: "u1", ...user };
@@ -53,6 +74,9 @@ w.mount = (name: string, user: Record<string, unknown> = { role: "owner", org_ro
       break;
     case "sheet-waiting":
       root.render(<div className="mx-auto max-w-sm p-4"><SheetWaitingNotice kind={props.kind} groupId="287049ea-7673-5f46-b17e-41e317fdd7f1" title="Математика 7" lesson={{ id: "lesson-mon", date: "2026-11-23", startTime: "10:00", endTime: "11:30", ...(props.lesson ?? {}) }} moneyRight={props.moneyRight === true} onDecided={(outcome) => w.__log.push(`decided:${outcome}`)} onAlreadyDecided={() => w.__log.push("already-decided")} onWithdrawn={(text) => w.__log.push(`withdrawn:${text}`)} onWithdrawFailed={() => w.__log.push("withdraw-failed")} /></div>);
+      break;
+    case "sheet-waiting-parent":
+      root.render(<SheetParent moneyRight={props.moneyRight === true} canWithdraw={props.canWithdraw === true} reportedBy={props.reportedBy} reportedByRole={props.reportedByRole} />);
       break;
     case "journal":
       root.render(<GroupAttendanceJournal groupId={props.groupId} students={props.students ?? []} canEdit adminMode={props.adminMode === true} groupName="Математика 7" initialMonth={props.month ?? "2026-11"} />);

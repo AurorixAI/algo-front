@@ -134,7 +134,7 @@ test("outcomes of a waiting cancellation: the sentence of the chosen outcome is 
   assert.equal(cap("centre", null), null, "nothing is promised before the numbers come");
 });
 
-test("the answer of the dry run is CHECKED, not assumed: the real preview is a preview; the answer of somebody's decision (changed false / no dry_run) is «decided»; a broken one is not trusted", () => {
+test("the answer of the dry run is CHECKED, not assumed: the real preview is a preview; the answer of somebody's decision (`changed: false`) is «decided»; a broken one is not trusted", () => {
   for (const name of ["dry_run_confirm_centre", "dry_run_confirm_holiday", "dry_run_confirm_old_lesson", "dry_run_confirm_archived", "dry_run_zero_packages"]) {
     const verdict = L.previewVerdict(answers(name));
     assert.equal(verdict.kind, "preview", name);
@@ -144,7 +144,9 @@ test("the answer of the dry run is CHECKED, not assumed: the real preview is a p
   assert.equal(L.previewVerdict(answers("dry_run_confirm_old_lesson")).preview.teacher_can_mark, false);
   const real = answers("dry_run_confirm_centre");
   assert.deepEqual(L.previewVerdict({ ok: true, changed: false, message: "Отмену уже решили" }), { kind: "decided", text: "Отмену уже решили" });
-  assert.equal(L.previewVerdict({ ...real, dry_run: undefined }).kind, "decided", "no dry_run: it is the answer of a write, not a preview");
+  assert.equal(L.previewVerdict({ ...real, dry_run: undefined }).kind, "broken", "no dry_run and no `changed: false`: the answer of a write, not a preview and not «decided» - a broken one (М1)");
+  assert.equal(L.previewVerdict({ ok: true, changed: true }).kind, "broken", "М1");
+  assert.deepEqual(L.previewVerdict({ ...real, changed: false, message: "Отмену уже решили" }), { kind: "decided", text: "Отмену уже решили" }, "`changed: false` is the one word of «решил другой»");
   assert.equal(L.previewVerdict({ ...real, centre_text: "" }).kind, "broken", "a preview without the words of the server is not shown");
   assert.equal(L.previewVerdict({ ...real, students: "9" }).kind, "broken");
   assert.equal(L.previewVerdict(null).kind, "broken");
