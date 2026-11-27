@@ -137,6 +137,7 @@ export function TeacherRequestsBlock({
                     {item.status === "pending" && (
                       <Button
                         type="button"
+                        aria-label={`Отозвать запрос на замену: ${myRequestLine(item)}`}
                         onClick={() => void withdraw(item.id)}
                         disabled={busyId !== null}
                         variant="ghost" size="sm"
@@ -149,7 +150,7 @@ export function TeacherRequestsBlock({
                       <Button
                         type="button"
                         data-testid="withdraw-cancellation"
-                        aria-label={`Отозвать отмену: ${myRequestLine(item)}`}
+                        aria-label={`Отозвать отмену урока: ${myRequestLine(item)}`}
                         onClick={() => void withdrawCancellation(item)}
                         disabled={busyId !== null}
                         variant="ghost" size="sm"

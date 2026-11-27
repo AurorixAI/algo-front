@@ -11,7 +11,7 @@ import { LESSON_DELETED_TEXT, deadlineOf, lessonWhen, suggestedLine, type Deadli
 import { lastActivityLabel, originBadge, outcomeOf, peopleOf, reasonShort, systemReasonOf, type Audience } from "@/lib/substitution-outcome";
 import type { SubstitutionItem } from "@/lib/substitution-types";
 import { teacherWordsOf } from "@/lib/lesson-rules";
-import { ReasonWords } from "@/components/substitutions/history-rows";
+import { ReasonWords } from "@/components/substitutions/reason-words";
 
 /** The cells of a row of «Замены» (#157): the lesson, who -> whom, the reason, the result, when, «Подробнее».  The same cells for the wide table and for the card of a phone. */
 

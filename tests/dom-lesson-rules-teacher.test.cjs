@@ -28,7 +28,7 @@ for (const width of [375, 1280]) {
     const { page, errors } = await openBlock(mineOf(mineReal()), width);
     assert.match(plain(await page.textContent("section h2")), /Запросы и изменения уроков/);
     const rows = page.locator('[data-testid="my-request-row"]');
-    assert.equal(await rows.count(), 10, "12 records of the answer (two of them the one-off lessons) minus the two system records of the returned lessons that have the cancellation «урок был»");
+    assert.equal(await rows.count(), 9, "12 records of the answer (two of them the one-off lessons) minus the three system records of the returned lessons: each of the three lessons has a cancellation of the teacher");
     const texts = (await rows.allTextContents()).map(plain);
     assert.match(texts[0], /ср, 18\.11 · Математика 7/);
     assert.match(texts[0], /Отмена ждёт подтверждения/);
@@ -37,7 +37,7 @@ for (const width of [375, 1280]) {
     assert.match(texts[1], /Отмена ждёт подтверждения/);
     assert.match(texts[1], /Отозвать/);
     for (const chip of ["Отменён: праздник", "Отменён: по вине центра", "Включён в зарплату", "Разовый урок"]) assert.ok(texts.some((t) => t.includes(chip)), chip);
-    assert.equal(await page.locator('button[aria-label="Отозвать отмену: пн, 23.11 · Математика 7"]').count(), 1);
+    assert.equal(await page.locator('button[aria-label="Отозвать отмену урока: пн, 23.11 · Математика 7"]').count(), 1);
     assert.equal(await page.locator('[data-testid="withdraw-cancellation"]').count(), 1, "only the one with canWithdraw true");
     assert.equal(await page.locator("text=Новый запрос").count(), 1);
     const link = await page.evaluate(() => { const el = [...document.querySelectorAll("button")].find((b) => /Новый запрос/.test(b.textContent)); const range = document.createRange(); range.selectNodeContents(el); return { lines: new Set([...range.getClientRects()].map((r) => Math.round((r.top + r.bottom) / 8))).size, right: Math.round(el.getBoundingClientRect().right), viewport: window.innerWidth }; });
@@ -51,7 +51,7 @@ for (const width of [375, 1280]) {
   });
 }
 
-test("a returned lesson is ONE row: the cancellation «урок был» of 09.11 and 25.11 stand, their system records `closed` are hidden; the return of 02.11 has no such cancellation and stays", async () => {
+test("a returned lesson is ONE row: the cancellation of the teacher stands (whatever its outcome), the system record `closed` of the return is hidden - 09.11, 25.11 and 02.11 («Включён в зарплату»)", async () => {
   const mine = mineReal();
   const system = mine.items.filter((i) => i.status === "closed" && i.outcome === "lesson_restored");
   assert.equal(system.length, 3, "the real answer has three system records of a return");
@@ -59,7 +59,9 @@ test("a returned lesson is ONE row: the cancellation «урок был» of 09.1
   const { page } = run;
   assert.equal(await rowOf(page, "пн, 09.11").count(), 1);
   assert.equal(await rowOf(page, "ср, 25.11").count(), 1);
-  assert.equal(await rowOf(page, "пн, 02.11").count(), 2, "02.11: «Включён в зарплату» and the return - different outcomes, both stay");
+  assert.equal(await rowOf(page, "пн, 02.11").count(), 1, "02.11: ONE row «Включён в зарплату» - the system record of the return is hidden");
+  assert.match(plain(await rowOf(page, "пн, 02.11").textContent()), /Включён в зарплату/);
+  assert.doesNotMatch(plain(await rowOf(page, "пн, 02.11").textContent()), /Урок возвращён/);
   await page.close();
 });
 

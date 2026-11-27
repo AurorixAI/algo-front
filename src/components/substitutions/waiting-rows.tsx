@@ -1,13 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { ChevronRight, Loader2, MessageSquare } from "lucide-react";
+import { ChevronRight, Loader2 } from "lucide-react";
 import { Chip } from "@/components/ui/chip";
 import { Button } from "@/components/ui/button";
 import { dayAndDateLabel } from "@/lib/ops-errors";
 import { TAP_ZONE } from "@/lib/tap-zone";
 import { lessonWhen } from "@/lib/substitutions";
 import { waitingChipText, waitingDecideLabel, waitingReasonText, reportedLine } from "@/lib/lesson-rules";
+import { ReasonWords } from "@/components/substitutions/reason-words";
 import type { WaitingCancellationItem } from "@/lib/substitution-types";
 
 /** «Открыть урок: Математика 7, пн, 23.11, 17:00–18:00» - the name of the link of the lesson of a waiting cancellation (fifty rows must not read alike). */
@@ -33,17 +34,6 @@ export function LessonLinkCell({ item, href }: { item: { group: { name: string }
   ) : <div className="min-w-0 text-left">{body}</div>;
 }
 
-/** The words of the cancelling person: not a chip - a comment mark and the line, cut with «…» (the whole sentence is the title and the window of the decision). */
-export function WaitingReason({ item }: { item: WaitingCancellationItem }) {
-  const text = waitingReasonText(item);
-  return (
-    <p data-testid="waiting-reason" data-allow-hscroll="" title={text} className="flex min-w-0 items-center gap-1.5 text-sm text-slate-700">
-      <MessageSquare className="h-4 w-4 shrink-0 text-slate-500" aria-hidden />
-      <span className="min-w-0 truncate">{text}</span>
-    </p>
-  );
-}
-
 /**
  * A cancellation that waits, as a row of the table «Ждут решения» (for who may decide it): the lesson, the teacher, the words of the teacher, «ждёт N дней», «Решить», «›».  No tick: the bulk
  * panel decides requests (a cancellation is decided one by one - the outcome is a fact about the lesson, not a choice for a pack).  The grid classes are those of the page's table.
@@ -66,7 +56,7 @@ export function WaitingTableRow({ item, cols, showReason, tickSpace = true, less
       </div>
       <p className="break-words text-sm font-medium text-slate-800">{item.teacher.name}</p>
       <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1.5 xl:contents">
-        {showReason && <div className="min-w-0 max-xl:w-full"><WaitingReason item={item} /></div>}
+        {showReason && <div className="min-w-0 max-xl:w-full"><ReasonWords text={waitingReasonText(item)} testId="waiting-reason" /></div>}
         <div className="flex min-w-0 justify-start xl:justify-center">
           <Chip tone="warn" testId="waiting-days" className="whitespace-nowrap">{waitingChipText(item.waitingDays)}</Chip>
         </div>
@@ -92,7 +82,7 @@ export function WaitingReportedRow({ item, onWithdraw, busy = false }: { item: W
     <li data-testid="waiting-reported-row" className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3 text-sm text-slate-800">
       <span className="min-w-0 flex-1 break-words">{reportedLine(item)}</span>
       {mayWithdraw && (
-        <Button type="button" data-testid="withdraw-cancellation" aria-label={`Отозвать отмену: ${waitingLessonLabel(item)}`} onClick={() => onWithdraw?.(item)} disabled={busy} variant="ghost" size="sm">
+        <Button type="button" data-testid="withdraw-cancellation" aria-label={`Отозвать отмену урока: ${waitingLessonLabel(item)}`} onClick={() => onWithdraw?.(item)} disabled={busy} variant="ghost" size="sm">
           {busy && <Loader2 className="h-3 w-3 animate-spin" aria-hidden />}
           Отозвать
         </Button>

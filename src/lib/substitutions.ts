@@ -504,10 +504,10 @@ export const RECENT_DAYS = 14;
  * The block «Запросы на замену» of the dashboard: every waiting request (the nearest lesson first) and the decided ones of the last
  * 14 days (the latest decision first).  The server sends the last 60 days; the rest is cut here.
  */
-/** LESSON-RULES: a lesson that was given back has TWO records in `mine()` - the cancellation with the outcome «урок был» and the system record of the return (`closed`, LESSON_RESTORED). The teacher reads ONE row per lesson (group + date + lessonId): the system record is hidden when the cancellation of the same lesson says «урок был». */
+/** LESSON-RULES: a lesson that was given back has TWO records in `mine()` - the cancellation of the teacher (whatever its outcome: «урок был», «Включён в зарплату», «по вине центра»…) and the system record of the return (`closed`, LESSON_RESTORED). The teacher reads ONE row per lesson (group + date + lessonId): the system record is hidden when the same lesson has ANY cancellation of the teacher. */
 export function oneRowPerReturnedLesson(items: SubstitutionItem[]): SubstitutionItem[] {
   const lessonKey = (item: SubstitutionItem) => `${item.group.id}|${item.lesson.date}|${item.lesson.lessonId ?? ""}`;
-  const withCancellation = new Set(items.filter((item) => item.status === "cancelled" && item.outcome === "lesson_restored").map(lessonKey));
+  const withCancellation = new Set(items.filter((item) => item.trigger === "teacher_cancel").map(lessonKey));
   return items.filter((item) => !(item.status === "closed" && item.outcome === "lesson_restored" && withCancellation.has(lessonKey(item))));
 }
 

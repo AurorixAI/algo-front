@@ -28,7 +28,6 @@ import { openLessonAccess } from "@/lib/attendance-ops";
 import {
   validFromBadge, validFromError,
 } from "@/lib/schedule-slots";
-import { refusalText } from "@/lib/weekly-lessons";
 import { focusFirstInvalid } from "@/lib/focus-invalid";
 import { NO_ONE_OFF_RIGHT_TEXT, choiceProblem, emptyChoice, groupsBaseOf, oneOffRoleOf, type OneOffChoice } from "@/lib/one-off";
 import { OneOffPurposeFields, candidatesOf, useMakeupCandidates } from "@/components/schedule/one-off-purpose";
@@ -37,7 +36,7 @@ import { LessonChips } from "@/components/substitutions/lesson-chips";
 import { DayHeading } from "@/components/schedule/day-heading";
 import { useToast } from "@/components/ui/toast";
 import { LessonScopeFields, LessonSlotFields, ShiftedDayNote } from "@/components/schedule/lesson-slot-fields";
-import { createOneOff, createWeeklyLessons, weeklyResolver } from "@/lib/weekly-lessons";
+import { createOneOff, createWeeklyLessons, refusalText, weeklyResolver } from "@/lib/weekly-lessons";
 import { EditWeeklyLessonDialog, EndWeeklyLessonDialog } from "@/components/schedule/weekly-lesson-dialogs";
 import { COLOR_CLASSES, nextBusinessDate, DAY_REQUIRED_TEXT, canVaryTimes, dayShort, dayTimeProblem, dayTimesOf, isTimeRequiredText, overlappingLesson, pastDayPlan, reconcileDayTimes, weeklyResultText, type DayTimes } from "@/lib/lesson-slot-form";
 import { Button } from "@/components/ui/button";

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ChevronRight, MessageSquare } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 import { Chip } from "@/components/ui/chip";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
@@ -19,16 +19,7 @@ import { lessonWhen, shortWhen } from "@/lib/substitutions";
 import { auditByLine, auditChipText, auditPanelTitle, salaryLineOf } from "@/lib/lesson-rules";
 import type { AuditEntryItem } from "@/lib/substitution-types";
 import { LessonLinkCell, waitingLessonLabel } from "@/components/substitutions/waiting-rows";
-
-/** The reason words of a row of the history: a comment mark and the line (the words of the person), never a chip. */
-export function ReasonWords({ text, testId = "reason-words" }: { text: string; testId?: string }) {
-  return (
-    <p data-testid={testId} data-allow-hscroll="" title={text} className="flex min-w-0 items-center gap-1.5 text-sm text-slate-700">
-      <MessageSquare className="h-4 w-4 shrink-0 text-slate-500" aria-hidden />
-      <span className="min-w-0 truncate">{text}</span>
-    </p>
-  );
-}
+import { ReasonWords } from "@/components/substitutions/reason-words";
 
 /**
  * An entry of the journal as a row of the history («Задним числом · 2 дн.», «Отметки исправлены», «Добавил урок в расписание»): the lesson, who -> whom (the person who wrote the line, when it is not the

@@ -29,7 +29,7 @@ import {
 import { addIsoDays, formatBusinessDate, formatIsoDateLabel, isoDateDayOfWeek } from "@/lib/business-time";
 import { LessonTeacherDialog, type LessonTeacherTarget } from "@/components/groups/lesson-teacher-dialog";
 import { LessonChips } from "@/components/substitutions/lesson-chips";
-import { groupsBaseOf, oneOffRoleOf, purposeMarks } from "@/lib/one-off";
+import { canUndoDecision, groupsBaseOf, oneOffRoleOf, purposeMarks } from "@/lib/one-off";
 import { assignmentNotes, directAssignToast, lessonMarks, movedToLabel, substitutionsHref, substitutionsPathFor } from "@/lib/substitutions";
 import { useAuthStore } from "@/lib/store";
 import { useToast } from "@/components/ui/toast";
@@ -41,7 +41,6 @@ import { NO_TEACHER_SCHEDULE_HINT, nextBusinessDate, type WeeklyLesson } from "@
 import { weeklyResolver } from "@/lib/weekly-lessons";
 import { outOfPlan, todayPlanLines } from "@/lib/schedule-plan";
 import { canManageMoney } from "@/lib/money-effects";
-import { canUndoDecision } from "@/lib/one-off";
 import { addedByLine, assignActionLabel, lessonHasStarted, pastMarkLockReason, assignLockReason, lessonTitle, roomLine, scheduleCardActions, movedFromText, sheetNotes, teacherLine } from "@/lib/schedule-card-actions";
 import { Button } from "@/components/ui/button";
 

@@ -199,16 +199,16 @@ test("the teacher's block: the waiting cancellations first (the nearest lesson),
   const NOW = Date.parse("2026-11-26T07:00:00Z");
   assert.equal(mine.items.length, 12);
   const ordered = Subs.recentRequests(mine.items, NOW);
-  // the two system records `closed` of the lessons 09.11 and 25.11 are hidden: their cancellation says «урок был» already; the return of 02.11 has no such cancellation and stays
+  // the three system records `closed` of the returned lessons (02.11, 09.11, 25.11) are hidden: each of the lessons has its own cancellation of the teacher - ONE row per lesson
   // all the rows of the unload were decided at the same moment: the order inside the decided ones is the server's (stable), the waiting ones - the nearest lesson first; the two one-off rows (14.11, 17.11) are older than the cancellations
   assert.deepEqual(ordered.map((i) => `${i.lesson.date}:${i.outcome}`), [
     "2026-11-18:cancel_waiting", "2026-11-23:cancel_waiting", "2026-11-02:included_in_payroll", "2026-11-11:cancelled_centre", "2026-11-25:lesson_restored",
-    "2026-11-02:lesson_restored", "2026-11-09:lesson_restored", "2026-11-16:cancelled_holiday", "2026-11-17:one_off_added", "2026-11-14:one_off_added",
+    "2026-11-09:lesson_restored", "2026-11-16:cancelled_holiday", "2026-11-17:one_off_added", "2026-11-14:one_off_added",
   ]);
-  assert.deepEqual(Subs.oneRowPerReturnedLesson(mine.items).filter((i) => i.status === "closed" && i.outcome === "lesson_restored").map((i) => i.lesson.date), ["2026-11-02"]);
+  assert.deepEqual(Subs.oneRowPerReturnedLesson(mine.items).filter((i) => i.status === "closed" && i.outcome === "lesson_restored").map((i) => i.lesson.date), []);
   assert.deepEqual(ordered.map((i) => O.outcomeOf(i, "teacher").text), [
     "Отмена ждёт подтверждения", "Отмена ждёт подтверждения", "Включён в зарплату", "Отменён: по вине центра",
-    "Урок был — отметьте посещаемость", "Урок возвращён", "Урок был — отметит администратор", "Отменён: праздник", "Разовый урок", "Разовый урок",
+    "Урок был — отметьте посещаемость", "Урок был — отметит администратор", "Отменён: праздник", "Разовый урок", "Разовый урок",
   ]);
   assert.deepEqual(ordered.filter((i) => i.outcome === "cancel_waiting").map((i) => i.canWithdraw), [false, true], "«Отозвать» only where the server says so");
   assert.equal(Subs.myRequestLine(ordered[1]), "пн, 23.11 · Математика 7");
