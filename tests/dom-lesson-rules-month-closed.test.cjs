@@ -25,6 +25,8 @@ for (const width of [1280, 375]) {
     await page.evaluate(([user, props]) => window.mount("journal", user, props), [TEACHER, { groupId: journal.groupId, students: STUDENTS, adminMode: false, month: "2026-10" }]);
     await page.waitForSelector('th[data-lesson-key="2026-10-05_lesson-mon"]');
     await page.waitForTimeout(900);
+    assert.equal(plain(await page.textContent('[data-testid="journal-month-closed"]')), MONTH_CLOSED, "ONE line over the table says why there is nothing to do");
+    assert.equal(await page.locator('[data-testid="journal-month-closed"]').count(), 1);
     assert.equal(await page.locator("[data-column-menu-trigger]").count(), 0, "no menu of a column");
     for (const word of ["Отметить посещаемость", "Исправить отметки", "Завершить", "Урока не было", "Вернуть урок"]) assert.equal(await page.locator(`button:has-text("${word}"), [role="menuitem"]:has-text("${word}")`).count(), 0, word);
     const probe = await page.evaluate(layoutProbe, "body");
@@ -45,6 +47,7 @@ for (const width of [1280, 375]) {
     await page.waitForTimeout(900);
     await page.locator('th[data-lesson-key="2026-11-02_lesson-mon"] [data-column-menu-trigger]').evaluate((el) => el.click());
     await page.waitForSelector('[data-testid="menu-teacher-locked"]');
+    assert.equal(await page.locator('[data-testid="journal-month-closed"]').count(), 1, "and the line over the table (a lesson of the month is closed)");
     const item = plain(await page.textContent('[data-testid="menu-teacher-locked"]'));
     assert.match(item, /Исправить отметки/);
     assert.ok(item.includes(MONTH_CLOSED), item);

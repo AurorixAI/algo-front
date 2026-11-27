@@ -48,6 +48,7 @@ for (const width of [1280, 1024, 375]) {
     assert.equal(await page.getAttribute('[data-testid="menu-teacher-locked"]', "aria-disabled"), "true");
     const probe = await page.evaluate(layoutProbe, "body");
     assert.equal(probe.scroll > 0, false, "the table scrolls inside its own box, the page does not");
+    assert.equal(await page.locator('[data-testid="journal-month-closed"]').count(), 0, "an open month (the real journal of November) has no such line");
     assert.deepEqual(noise(errors), []);
     await page.close();
   });

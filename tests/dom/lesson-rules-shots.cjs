@@ -220,13 +220,84 @@ const dryServer = (extra) => (r) => {
       await admin.page.locator('th[data-lesson-key="2026-11-02_lesson-mon"] [data-column-menu-trigger]').evaluate((el) => el.click());
       await admin.page.click('[role="menuitem"]:has-text("Исправить отметки")');
       await admin.page.locator(`tr:has-text("${decidedStudent.full_name}") td`).nth(1).locator("button").first().click();
-      await admin.page.click('[role="menuitemradio"]:not([aria-checked="true"])');
+      await admin.page.waitForTimeout(500);
+      await admin.page.locator('[role="menuitemradio"]:not([aria-checked="true"])').first().evaluate((el) => el.click());
       await admin.page.click('button:visible:has-text("Сохранить исправление")');
       await admin.page.fill("#correction-reason", "Исправляю отметку ученика");
       await admin.page.click('[data-testid="correction-submit"]');
       await admin.page.waitForSelector('[data-testid="excuse-decided-notice"]');
       await shot(admin.page, "C10-journal-excuse-decided");
       await admin.page.close();
+    }
+    // С11: an administrator WITHOUT the right who cancelled the lesson himself: «Отозвать» on his line of «Решает владелец»
+    {
+      const pending = answer("pending_admin_author");
+      const { page, errors } = await open("lesson-rules.entry.tsx", listServer({ pending }), ADMIN_NO_MONEY, { role: "admin" });
+      await page.waitForSelector('[data-testid="one-off-decisions-toggle"]');
+      await page.click('[data-testid="one-off-decisions-toggle"]');
+      await page.waitForSelector('[data-testid="withdraw-cancellation"]');
+      await check(page, errors, `С11 admin author ${width}`);
+      await shot(page, "S11-admin-author-withdraw");
+      await page.close();
+    }
+    // С11: the window when the recalculation is zero - the sentence of the server says why
+    for (const name of ["packages", "nobody_charged", "one_off"]) {
+      const { page, errors } = await open("lesson-rules.entry.tsx", listServer({ extra: (r) => (r.method === "PUT" && KIND.test(r.path) ? { json: /dry_run=true/.test(r.query) ? answer(`dry_run_zero_${name}`) : { ok: true } } : null) }), OWNER, { role: "owner" });
+      await page.waitForSelector('[data-testid="waiting-row"]');
+      await page.click(MON);
+      await page.click('[data-testid="waiting-outcome-centre"]');
+      await page.waitForSelector('[data-testid="waiting-caption"]');
+      await page.waitForTimeout(300);
+      await check(page, errors, `С11 zero ${name} ${width}`);
+      await shot(page, `S11-window-zero-${name}`);
+      await page.close();
+    }
+    // С11: the history - an evening lesson closed after midnight (nothing), the administrator with the money right wrote a «задним числом»
+    for (const [tag, history] of [["evening-not-late", answer("history_evening_not_late")], ["admin-with-right", answer("history_admin_with_right")]]) {
+      const { page, errors } = await open("lesson-rules.entry.tsx", listServer({ decided: history }), OWNER, { role: "owner" });
+      await page.click('[role="tab"]:has-text("История")');
+      await page.waitForSelector(tag === "evening-not-late" ? 'text="Здесь появятся события за последние 30 дней."' : '[data-testid="audit-row"]');
+      await check(page, errors, `С11 history ${tag} ${width}`);
+      await shot(page, `S11-history-${tag}`);
+      await page.close();
+    }
+    // п.10 / п.7: the journal of a group (the teacher, the owner) - November, and a closed October; the panel of a lesson of the schedule in a closed month
+    {
+      const students = answer("dry_run_confirm_centre").deductions.map((d, i) => { const [last, first] = d.name.split(" "); return { id: d.studentId, first_name: first, last_name: last, full_name: d.name, class_level: 7, status: "active", display_id: `AL7-00${i + 1}`, student_phone: null, joined_at: "2026-09-01", last_theta: null, last_level: null }; });
+      const TEACHER_ID = "42110e14-fb74-5185-9f18-4ab04bd042da";
+      const serveJournal = (journal) => (r) => (/\/attendance(\?|$)/.test(r.path + (r.query ? `?${r.query}` : "")) ? { json: journal } : null);
+      for (const [tag, who, adminMode] of [["teacher", { id: TEACHER_ID, ...TEACHER }, false], ["owner", { id: "owner-1", ...OWNER }, true]]) {
+        const journal = answer("journal_teacher");
+        const { page, errors } = await open("lesson-rules.entry.tsx", serveJournal(journal), who, { groupId: journal.groupId, students, adminMode }, "journal");
+        await page.waitForSelector('th[data-lesson-key="2026-11-02_lesson-mon"]');
+        await page.waitForTimeout(1200);
+        await check(page, errors, `п.10 journal ${tag} ${width}`);
+        await page.screenshot({ path: path.join(out, `J-journal-${tag}-${width}.png`) });
+        await page.click('th[data-lesson-key="2026-11-02_lesson-mon"] [data-column-menu-trigger]');
+        await page.waitForSelector('[role="menu"], [role="menuitem"]');
+        await page.waitForTimeout(400);
+        await page.screenshot({ path: path.join(out, `J-journal-${tag}-menu-${width}.png`) });
+        await page.close();
+      }
+      const closed = answer("journal_teacher_month_closed");
+      {
+        const { page, errors } = await open("lesson-rules.entry.tsx", serveJournal(closed), { id: TEACHER_ID, ...TEACHER }, { groupId: closed.groupId, students, adminMode: false, month: "2026-10" }, "journal");
+        await page.waitForSelector('th[data-lesson-key="2026-10-05_lesson-mon"]');
+        await page.waitForTimeout(1200);
+        await check(page, errors, `п.7 journal closed ${width}`);
+        await page.screenshot({ path: path.join(out, `M-journal-month-closed-${width}.png`) });
+        await page.close();
+      }
+      for (const [tag, lesson, journal] of [["month-closed", answer("schedule_teacher_month_closed").find((o) => o.occurrenceDate === "2026-10-05"), closed], ["older-than-window", answer("schedule_teacher").find((o) => o.occurrenceDate === "2026-11-09"), answer("journal_teacher")]]) {
+        const groups = [{ id: lesson.groupId, name: lesson.groupName, status: "active", teacher_id: TEACHER_ID, class_level: 7, student_count: students.length, subject: "math" }];
+        const roster = (r) => (r.path === `/auth/org/groups/${lesson.groupId}` ? { json: { ...groups[0], students } } : serveJournal(journal)(r));
+        const { page, errors } = await open("lesson-rules.entry.tsx", roster, { id: TEACHER_ID, ...TEACHER }, { lesson, groups }, "lesson-panel");
+        await page.waitForSelector('[role="status"]');
+        await page.waitForTimeout(500);
+        await check(page, errors, `п.7 panel ${tag} ${width}`);
+        await shot(page, `M-lesson-panel-${tag}`);
+        await page.close();
+      }
     }
     // Э8: «Настройки → Уроки»
     {

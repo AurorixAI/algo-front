@@ -37,7 +37,7 @@ import {
   formatUtcNaiveAsBusinessDateTime,
 } from "@/lib/business-time";
 import { wasMemberOn } from "@/lib/membership-periods";
-import { lessonWindowLock } from "@/lib/ops-errors";
+import { MONTH_CLOSED_TEXT, lessonWindowLock } from "@/lib/ops-errors";
 import { Notice } from "@/components/ui/notice";
 import {
   collectExcuseReasons,
@@ -1537,6 +1537,10 @@ export function GroupAttendanceJournal({
             <h3 className="text-sm font-bold text-slate-800">Журнал посещаемости</h3>
             <AttendanceLegendHint />
           </div>
+          {/* LESSON-RULES: a month closed by the payroll sheet (the server's `monthClosed` on the lessons) - the teacher has nothing to do here, one line says who does */}
+          {canEdit && !adminMode && lessons.some((lesson) => lesson.monthClosed === true) && (
+            <p role="status" data-testid="journal-month-closed" className="border-b border-slate-100 bg-slate-50 px-4 py-2 text-xs font-semibold text-slate-700 sm:px-5">{MONTH_CLOSED_TEXT}</p>
+          )}
           <div ref={journalScrollRef} className="overflow-x-auto">
             <table className="min-w-max w-full border-collapse text-left text-xs">
               <thead>
