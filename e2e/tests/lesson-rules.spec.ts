@@ -1,25 +1,38 @@
 import { test, expect } from "../support/fixtures";
 import { Org, type GroupInfo, type LessonInfo, type Staff } from "../support/api";
 import { addDays, businessNow, weekdayOf } from "../support/time";
+import { clockReaches } from "../support/clock";
 import { expectNoHorizontalScroll, moneyPattern } from "../support/ui";
 
 /**
  * LESSON-RULES (26.11): «Урока не было» of a PAST lesson said by a teacher waits for the owner.
  *  1. the teacher reports -> the owner sees the row in «Замены → Ждут решения» (the words of the teacher, «Решить») -> confirms «По вине центра» -> the teacher reads the outcome in «Запросы и изменения уроков»;
  *  2. the teacher reports and takes his report back («Отозвать») before the owner decides -> the owner's list is empty again and the lesson is back among the lessons without a mark.
- * Written for the gate of the screens (run by the lead: `npm run e2e`); the stand's business clock gives the lesson «this very minute» (it has begun, so its cancellation is a REPORT).
+ * Written for the gate of the screens (run by the lead: `npm run e2e`); the lesson is a one-minute lesson of «this very minute» that the stand clock has left behind (`createEndedLesson`): it is over, so its cancellation is a REPORT.
  */
 let org: Org;
 test.beforeAll(async () => {
   org = await Org.create("Правила уроков");
 });
 
+/**
+ * A lesson that is OVER by the clock of the stand: the server reconciles (and a teacher reports) only a lesson whose time has ended ("current minute > end minute").
+ * A lesson cannot be created in the past, and the stand clock must not be moved (it is shared by the parallel workers), so: a ONE-minute lesson of «this very minute»
+ * and a wait (at most ~2 minutes of the stand clock) until the minute after its end.
+ */
+async function createEndedLesson(centre: Org, groupId: string): Promise<LessonInfo> {
+  const lesson = await centre.createLessonStartingNow(groupId, centre.owner, 1);
+  const [hours, minutes] = lesson.endTime.split(":").map(Number);
+  await clockReaches(hours * 60 + minutes + 1, 150);
+  return lesson;
+}
+
 async function worldWithPastLesson(label: string) {
   const teacher = await org.addStaff("teacher", `Отчитавшийся${label}`);
   const group = await org.createGroup({ name: `Группа П${label}`, teacherId: teacher.userId });
   await org.setGroupPrice(group.id, 600000);
   await org.addStudent(group, "Анвар", `Ученик${label}`);
-  const lesson = await org.createLessonStartingNow(group.id, org.owner, 10);
+  const lesson = await createEndedLesson(org, group.id);
   return { teacher, group, lesson };
 }
 
@@ -169,7 +182,7 @@ async function moneyWorld(label: string, { adminWithoutRight = false } = {}) {
   const teacher = await centre.addStaff("teacher", `Отчитавшийся${label}`);
   const group = await centre.createGroup({ name: `Группа Д${label}`, teacherId: teacher.userId });
   await centre.setGroupPrice(group.id, lessons * PER_LESSON);
-  const lesson = await centre.createLessonStartingNow(group.id, centre.owner, 10);   // today's weekday
+  const lesson = await createEndedLesson(centre, group.id);   // today's weekday, over by the stand clock
   for (const dayOfWeek of weekdays.slice(1)) {
     await centre.owner.api.post("/auth/org/schedule/lessons", { groupId: group.id, dayOfWeek, startTime: "10:00", endTime: "11:00", topic: "E2E" });
   }
