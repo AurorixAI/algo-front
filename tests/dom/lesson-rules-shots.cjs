@@ -24,6 +24,11 @@ const LONG = "Индивидуальный курс подготовки к ол
 const LONG_TEACHER = "Эргашев-Муртазаев Камолиддин";
 const LONG_REASON = "Отключили электричество во всём здании, а резервный генератор не запустили до конца дня, поэтому занятие провести не удалось";
 
+/** The journal scrolls INSIDE its own box (overflow-x-auto): only the scroll of the page and the errors are suspicious there. */
+async function checkPageOnly(page, errors, label) {
+  const pageScroll = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+  if (pageScroll > 0 || errors.filter((t) => !/404|Failed to load resource|409|422|500/.test(t)).length) suspicious.push(`${label}: ${pageScroll > 0 ? `page scroll ${pageScroll} ` : ""}errors`);
+}
 async function check(page, errors, label) {
   const probe = await page.evaluate(layoutProbe, "body");
   const pageScroll = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
@@ -272,7 +277,7 @@ const dryServer = (extra) => (r) => {
         const { page, errors } = await open("lesson-rules.entry.tsx", serveJournal(journal), who, { groupId: journal.groupId, students, adminMode }, "journal");
         await page.waitForSelector('th[data-lesson-key="2026-11-02_lesson-mon"]');
         await page.waitForTimeout(1200);
-        await check(page, errors, `п.10 journal ${tag} ${width}`);
+        await checkPageOnly(page, errors, `п.10 journal ${tag} ${width}`);
         await page.screenshot({ path: path.join(out, `J-journal-${tag}-${width}.png`) });
         await page.click('th[data-lesson-key="2026-11-02_lesson-mon"] [data-column-menu-trigger]');
         await page.waitForSelector('[role="menu"], [role="menuitem"]');
@@ -285,7 +290,7 @@ const dryServer = (extra) => (r) => {
         const { page, errors } = await open("lesson-rules.entry.tsx", serveJournal(closed), { id: TEACHER_ID, ...TEACHER }, { groupId: closed.groupId, students, adminMode: false, month: "2026-10" }, "journal");
         await page.waitForSelector('th[data-lesson-key="2026-10-05_lesson-mon"]');
         await page.waitForTimeout(1200);
-        await check(page, errors, `п.7 journal closed ${width}`);
+        await checkPageOnly(page, errors, `п.7 journal closed ${width}`);
         await page.screenshot({ path: path.join(out, `M-journal-month-closed-${width}.png`) });
         await page.close();
       }
