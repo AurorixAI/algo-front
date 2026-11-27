@@ -129,6 +129,8 @@ export interface TeacherLessonPanelHost<L extends TeacherPanelLesson> {
   onMissedCancelled: (notes: string[]) => void;
   /** The teacher took his waiting cancellation back from the panel of the lesson: the screen says it (the text is the toast) and reloads what it shows. */
   onCancellationWithdrawn: (text: string) => void;
+  /** The server refused the withdraw (somebody decided first, the window passed): the screen reads its lessons again, so the button and the chip of the panel are not left stale. */
+  reloadLessons?: () => void;
 }
 
 /** Everything the screen asks about the lesson of the open panel; the one reading of the rules. */
@@ -769,7 +771,11 @@ export function useTeacherLessonPanel<L extends TeacherPanelLesson>(host: Teache
     : null;
 
   const withdrawal = useWithdrawCancellation({
-    say: (text, tone) => { if (tone === "success") hostRef.current.onCancellationWithdrawn(text); else hostRef.current.notifyRefusal("Отмену не удалось отозвать", text); },
+    say: (text, tone) => {
+      if (tone === "success") { hostRef.current.onCancellationWithdrawn(text); return; }
+      hostRef.current.notifyRefusal("Отмену не удалось отозвать", text);
+      hostRef.current.reloadLessons?.();   // the lesson is read again: whatever the server said, the button and the chip show what is true now
+    },
     reload: () => undefined,
   });
   const withdrawActiveCancellation = () => {

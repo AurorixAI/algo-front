@@ -190,6 +190,7 @@ export default function TeacherDashboardPage() {
       lessonPanel.closePanel();
       setDashboardRefreshNonce((value) => value + 1);
     },
+    reloadLessons: () => setDashboardRefreshNonce((value) => value + 1),
   });
   const { setActiveLesson, requestClose, openLesson, openMissedLesson, missedLessonAction, consumeEscape, getSubsequentStartedLesson } = lessonPanel;
 

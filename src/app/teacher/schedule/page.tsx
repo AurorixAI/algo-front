@@ -178,6 +178,7 @@ export default function TeacherSchedulePage() {
       lessonPanel.closePanel();
       void reloadAfterWeeklyChange();
     },
+    reloadLessons: () => { void reloadAfterWeeklyChange(); },
   });
   const { activeLesson, setActiveLesson, consumeEscape, requestClose } = lessonPanel;
   const [liveExams, setLiveExams] = useState<LiveExamDashboardSummary[]>([]);
