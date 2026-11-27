@@ -86,7 +86,7 @@ test("the network breaks on the press: the window STAYS, says it in words, no to
   await page.close();
 });
 
-test("the preview answers 200 `changed: false` with no preview (somebody decided meanwhile): «Отмена уже решена», no outcome offered, no sums invented, the list is read again", async () => {
+test("FORM CHECK (the server no longer answers a preview so; the shape is still read): the preview answers 200 `changed: false` with no preview (somebody decided meanwhile): «Отмена уже решена», no outcome offered, no sums invented, the list is read again", async () => {
   const run = await open(centreServer((r) => (r.method === "PUT" && KIND_PATH.test(r.path) && isDry(r) ? { json: { ok: true, changed: false, from: "centre", to: "centre", cancellationKind: "centre" } } : null)));
   const { page, calls } = run;
   const before = reads(calls, (c) => LIST.test(c.path));
@@ -198,7 +198,7 @@ test("the journal: 409 from «Решить» - the window says who and when, the
 
 test("the withdraw fails (409 ALREADY_DECIDED / a broken network): the teacher reads WHY in words, the block is read again, the button of the other lesson is untouched", async () => {
   const mine = answer("mine_teacher");
-  for (const [label, result] of [["409", { status: 409, json: ALREADY }], ["500", { status: 500, json: { detail: { code: "INTERNAL", message: "Сервис временно недоступен" } } }]]) {
+  for (const [label, result] of [["409", { status: 409, json: ALREADY }], ["500", { status: 500, json: { detail: "Internal Server Error" } }]]) {
     let mineReads = 0;
     const run = await openPage(ctx.browser, "lesson-rules.entry.tsx", (r) => {
       if (r.path === "/auth/org/substitutions/mine") { mineReads += 1; return { json: mine }; }
@@ -210,8 +210,8 @@ test("the withdraw fails (409 ALREADY_DECIDED / a broken network): the teacher r
     await run.page.click('[data-testid="withdraw-cancellation"]');
     await run.page.waitForSelector('section[aria-label] p[role="alert"]');
     const said = plain(await run.page.textContent('section[aria-label] p[role="alert"]'));
-    assert.ok(said.length > 10, `${label}: the person is told`);
-    if (label === "409") assert.equal(said, ALREADY.detail.message);
+    // the exact words: the 409 - the sentence of the server; a 500 with no code (the real 500) - the one phrase of the withdraw
+    assert.equal(said, label === "409" ? ALREADY.detail.message : "Не удалось отозвать отмену. Проверьте соединение и повторите попытку.", `${label}: the person is told`);
     assert.ok(mineReads >= 2, `${label}: the block is read again`);
     assert.equal(await run.page.locator('[data-testid="withdraw-cancellation"]').count(), 1, `${label}: the cancellation is still his to take back`);
     assert.equal(await run.page.evaluate(() => window.__log.includes("changed")), false, `${label}: the dashboard is not told «changed»`);

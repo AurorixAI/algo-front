@@ -9,6 +9,7 @@ const assert = require("node:assert/strict");
 const test = require("node:test");
 const { setup, isDry, OWNER, ADMIN } = require("./helpers/money2-w2.cjs");
 const { openPage } = require("./helpers/dom-page.cjs");
+const { layoutProbe } = require("./helpers/layout-probe.cjs");
 const { answer, listServer, WORLD_DAY, WORLD_TEACHER_ID, plain } = require("./helpers/lesson-rules-answers.cjs");
 
 const ctx = setup(test);
@@ -289,3 +290,38 @@ test("М5: the money right is lost at the press (403 MONEY_RIGHT_REQUIRED) - the
   await until(() => reads(calls, (c) => c.path === "/auth/org/substitutions/summary") > summary, "the badge of the menu is read again");
   await page.close();
 });
+
+// ── п.10: the journal of an administrator WITHOUT the money right - the real answer (journal_admin_no_money) ───────────────────────────
+
+const ADMIN_JOURNAL = answer("journal_admin_no_money");
+const ADMIN_NO_MONEY = { id: "admin-1", ...ADMIN, payments_access: false };
+const ADMIN_STUDENTS = PREVIEW.deductions.map((d, index) => {
+  const [last, first] = d.name.split(" ");
+  return { id: d.studentId, first_name: first, last_name: last, full_name: d.name, class_level: 7, status: "active", display_id: `AL7-00${index + 1}`, student_phone: "" };
+});
+
+for (const width of [1280, 1024, 375]) {
+  test(`${width}: the journal of an administrator without the right (the real answer): the waiting columns say who reported and who decides; no «Решить» (no right), no «Отозвать» (canWithdraw false - not his cancellations); no sums`, async () => {
+    const waiting = ADMIN_JOURNAL.lessons.filter((l) => l.waiting === true);
+    assert.deepEqual(waiting.map((l) => [l.date, l.reportedBy, l.reportedByRole, l.canWithdraw]), [["2026-11-18", "Эргашев К.", "teacher", false], ["2026-11-23", "Эргашев К.", "teacher", false]], "the real answer");
+    const run = await openPage(ctx.browser, "lesson-rules.entry.tsx", (r) => (/\/attendance(\?|$)/.test(r.path + (r.query ? `?${r.query}` : "")) ? { json: ADMIN_JOURNAL } : null), { width, height: width === 375 ? 800 : 900, today: WORLD_DAY });
+    const { page, errors } = run;
+    await page.evaluate(([user, props]) => window.mount("journal", user, props), [ADMIN_NO_MONEY, { groupId: ADMIN_JOURNAL.groupId, students: ADMIN_STUDENTS, adminMode: true }]);
+    await page.waitForSelector('th[data-lesson-key="2026-11-23_lesson-mon"]');
+    for (const lesson of waiting) {
+      const head = page.locator(`th[data-lesson-key="${lesson.date}_${lesson.id}"]`);
+      assert.equal(await head.getAttribute("title"), "Сообщил: Эргашев К., преподаватель. Отмену подтвердит владелец или администратор с доступом к деньгам", lesson.date);
+      const trigger = head.locator("[data-column-menu-trigger]");
+      if (await trigger.count() > 0) {
+        await trigger.evaluate((el) => el.click());
+        assert.equal(await page.locator('[data-testid="menu-decide-waiting"], [data-testid="menu-withdraw"]').count(), 0, `${lesson.date}: neither «Решить» nor «Отозвать»`);
+      }
+    }
+    assert.equal(await page.locator('[data-testid="menu-decide-waiting"], [data-testid="menu-withdraw"]').count(), 0);
+    assert.doesNotMatch(plain(await page.textContent("body")), /\d\s\d{3}\s*сум/, "no sums for a role without the right");
+    const probe = await page.evaluate(layoutProbe, "body");
+    assert.equal(probe.scroll > 0, false, "the table scrolls inside its own box");
+    assert.deepEqual(noise(errors), []);
+    await page.close();
+  });
+}

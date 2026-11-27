@@ -1,0 +1,129 @@
+{
+  "items": [
+    {
+      "source": "unconfirmed",
+      "id": "315f5650-394c-404f-98e8-b04cc0a36193",
+      "kind": "unconfirmed",
+      "group": {
+        "id": "2a28aa5e-5390-5bda-b3ff-1d21743bec7b",
+        "name": "Математика 7",
+        "studentCount": 9
+      },
+      "lesson": {
+        "lessonId": "lesson-wed",
+        "date": "2026-11-18",
+        "startTime": "10:00",
+        "endTime": "11:30"
+      },
+      "teacher": {
+        "id": "968ba5a8-118b-5b32-a96a-7fa269622f49",
+        "name": "Эргашев К.",
+        "role": null
+      },
+      "cancelledBy": {
+        "id": "968ba5a8-118b-5b32-a96a-7fa269622f49",
+        "name": "Эргашев К.",
+        "role": "teacher"
+      },
+      "reportedBy": "Эргашев К.",
+      "reportedByRole": "teacher",
+      "reason": "Отключили свет",
+      "cancelledAt": "2026-11-26T07:00:00",
+      "waitingDays": 0,
+      "ageDays": 8,
+      "canDecide": true,
+      "canWithdraw": false
+    },
+    {
+      "source": "unconfirmed",
+      "id": "6512a6ba-4174-488e-b23e-07818f6b8f80",
+      "kind": "unconfirmed",
+      "group": {
+        "id": "2a28aa5e-5390-5bda-b3ff-1d21743bec7b",
+        "name": "Математика 7",
+        "studentCount": 9
+      },
+      "lesson": {
+        "lessonId": "lesson-mon",
+        "date": "2026-11-23",
+        "startTime": "10:00",
+        "endTime": "11:30"
+      },
+      "teacher": {
+        "id": "968ba5a8-118b-5b32-a96a-7fa269622f49",
+        "name": "Эргашев К.",
+        "role": null
+      },
+      "cancelledBy": {
+        "id": "968ba5a8-118b-5b32-a96a-7fa269622f49",
+        "name": "Эргашев К.",
+        "role": "teacher"
+      },
+      "reportedBy": "Эргашев К.",
+      "reportedByRole": "teacher",
+      "reason": "Отключили свет",
+      "cancelledAt": "2026-11-26T07:00:00",
+      "waitingDays": 0,
+      "ageDays": 3,
+      "canDecide": true,
+      "canWithdraw": false
+    },
+    {
+      "id": "61f043da-32bb-4cf9-bc28-e76d0e87ccb2",
+      "batchId": "ea24eb7e-9137-438d-9e47-b7927e635920",
+      "status": "pending",
+      "origin": "teacher",
+      "group": {
+        "id": "2a28aa5e-5390-5bda-b3ff-1d21743bec7b",
+        "name": "Математика 7",
+        "studentCount": 9
+      },
+      "lesson": {
+        "lessonId": "lesson-mon",
+        "date": "2026-11-30",
+        "startTime": "10:00",
+        "endTime": "11:30",
+        "room": null,
+        "format": "offline",
+        "startsAtUtc": "2026-11-30T05:00:00",
+        "exists": true
+      },
+      "teacher": {
+        "id": "968ba5a8-118b-5b32-a96a-7fa269622f49",
+        "name": "Эргашев К.",
+        "role": "teacher"
+      },
+      "reasonCode": "sick",
+      "reasonLabel": "Болезнь",
+      "comment": null,
+      "suggestedTeacher": null,
+      "createdAt": "2026-11-26T07:00:00",
+      "minutesToStart": 5640,
+      "urgent": false,
+      "overdue": false,
+      "decision": null,
+      "previous": null,
+      "trigger": null,
+      "clearedAt": null,
+      "clearedBy": null,
+      "clearedTo": null,
+      "clearedTrigger": null,
+      "outcome": "pending",
+      "lastActivityAt": "2026-11-26T07:00:00",
+      "needsDecision": false,
+      "confirmedBy": null,
+      "confirmedAt": null,
+      "waitingDays": null,
+      "teacherCanMark": null,
+      "canWithdraw": null,
+      "closedTrigger": null,
+      "source": "request"
+    }
+  ],
+  "total": 3,
+  "pendingTotal": 1,
+  "urgentTotal": 0,
+  "expiringTotal": 0,
+  "unconfirmedTotal": 2,
+  "waitingTotal": 3
+}

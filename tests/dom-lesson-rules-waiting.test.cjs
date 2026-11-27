@@ -173,15 +173,17 @@ test("an administrator WITHOUT the money right: the waiting cancellation is not 
   await page.close();
 });
 
-test("the pending list keeps a request row next to the waiting cancellations when the server says source:\"request\" (a row of the real history, made pending): the three models stand together", async () => {
-  const owner = answer("pending_owner");
-  const request = { ...answer("history").items.find((r) => r.source === "request"), status: "pending", outcome: null, decision: null };
-  assert.equal(request.source, "request");
-  const run = await open(listServer({ pending: { ...owner, items: [request, ...owner.items], total: 3 } }));
+test("the real «Ждут решения» of the owner with a request of a teacher (pending_owner_with_request: one `source:\"request\"` row for the lesson of 30.11 and two waiting cancellations): the three models stand together, the tab says the server's number", async () => {
+  const real = answer("pending_owner_with_request");
+  const request = real.items.find((r) => r.source === "request");
+  assert.deepEqual([real.items.length, real.pendingTotal, real.unconfirmedTotal, real.waitingTotal, request.lesson.date], [3, 1, 2, 3, "2026-11-30"], "the real answer");
+  const run = await open(listServer({ pending: real }));
   const { page } = run;
   await page.waitForSelector('[data-testid="waiting-row"]');
   assert.equal(await page.locator('[data-testid="substitution-row"]').count(), 1, "the request is a row of the table");
   assert.equal(await page.locator('[data-testid="waiting-row"]').count(), 2, "and the two waiting cancellations");
+  assert.match(plain(await page.textContent('[role="tablist"]')), /Ждут решения \(3\)/, "the number of the server: the request and the two cancellations");
+  assert.match(plain(await page.textContent('[data-testid="substitution-row"]')), /30\.11/, "the request of the lesson of 30.11");
   await page.close();
 });
 
