@@ -381,6 +381,53 @@ const dryServer = (extra) => (r) => {
       await shot(page, `N9-history-panel-${tag}`);
       await page.close();
     }
+    // пачка 4: the window from the sheet (the title by reportedByRole, three outcomes need the preview), the failed preview, «уже было решено так же»; the real «Ждут решения» with a request; the journal of an administrator without the right
+    for (const [tag, title] of [["ordinary", undefined], ["long", LONG]]) {
+      const { page, errors } = await open("lesson-rules.entry.tsx", dryServer(), OWNER, { kind: "unconfirmed", moneyRight: true, title, lesson: { reportedBy: "Каримова Д.", reportedByRole: "admin" } }, "sheet-waiting");
+      await page.click('[data-testid="sheet-decide-waiting"]');
+      await page.click('[data-testid="waiting-outcome-holiday"]');
+      await page.waitForFunction(() => !document.querySelector('[data-testid="waiting-confirm"]')?.hasAttribute("disabled"));
+      await check(page, errors, `P4 sheet window ${tag} ${width}`);
+      await shot(page, `P4-sheet-window-${tag}`);
+      await page.close();
+    }
+    {
+      const { page, errors } = await open("lesson-rules.entry.tsx", (r) => (r.method === "PUT" && KIND.test(r.path) ? { status: 500, json: { detail: "Internal Server Error" } } : null), OWNER, { kind: "unconfirmed", moneyRight: true }, "sheet-waiting");
+      await page.click('[data-testid="sheet-decide-waiting"]');
+      await page.click('[data-testid="waiting-outcome-holiday"]');
+      await page.waitForSelector('[data-testid="waiting-caption"] button');
+      await check(page, errors, `P4 preview failed ${width}`);
+      await shot(page, "P4-preview-failed");
+      await page.close();
+    }
+    {
+      const { page, errors } = await open("lesson-rules.entry.tsx", (r) => (r.method === "PUT" && KIND.test(r.path) && !/dry_run=true/.test(r.query) ? { json: { ok: true, changed: false, cancellationKind: "holiday", version: 3 } } : dryServer()(r)), OWNER, { kind: "unconfirmed", moneyRight: true }, "sheet-waiting");
+      await page.click('[data-testid="sheet-decide-waiting"]');
+      await page.click('[data-testid="waiting-outcome-holiday"]');
+      await page.waitForFunction(() => !document.querySelector('[data-testid="waiting-confirm"]')?.hasAttribute("disabled"));
+      await page.click('[data-testid="waiting-confirm"]');
+      await page.waitForSelector('[data-testid="waiting-decided"]');
+      await check(page, errors, `P4 decided the same ${width}`);
+      await shot(page, "P4-decided-the-same");
+      await page.close();
+    }
+    {
+      const { page, errors } = await open("lesson-rules.entry.tsx", listServer({ pending: answer("pending_owner_with_request") }), OWNER, { role: "owner" });
+      await page.waitForSelector('[data-testid="waiting-row"]');
+      await check(page, errors, `P4 owner with request ${width}`);
+      await shot(page, "P4-owner-pending-with-request");
+      await page.close();
+    }
+    {
+      const real = answer("journal_admin_no_money");
+      const roster = answer("dry_run_confirm_centre").deductions.map((d, index) => { const [last, first] = d.name.split(" "); return { id: d.studentId, first_name: first, last_name: last, full_name: d.name, class_level: 7, status: "active", display_id: `AL7-00${index + 1}`, student_phone: "" }; });
+      const { page, errors } = await open("lesson-rules.entry.tsx", (r) => (/\/attendance(\?|$)/.test(r.path + (r.query ? `?${r.query}` : "")) ? { json: real } : null), { ...ADMIN_NO_MONEY, id: "admin-1" }, { groupId: real.groupId, students: roster, adminMode: true }, "journal");
+      await page.waitForSelector('th[data-lesson-key="2026-11-23_lesson-mon"]');
+      await page.waitForTimeout(700);
+      await checkPageOnly(page, errors, `P4 journal admin no money ${width}`);
+      await shot(page, "P4-journal-admin-no-money");
+      await page.close();
+    }
     // Э8: «Настройки → Уроки»
     {
       const { page, errors } = await open("lesson-rules.entry.tsx", (r) => (/\/org\/settings\/lessons$/.test(r.path) ? { json: answer("rules_lessons") } : null), OWNER, {}, "lesson-rules");

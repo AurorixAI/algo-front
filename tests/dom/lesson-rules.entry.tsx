@@ -73,7 +73,7 @@ w.mount = (name: string, user: Record<string, unknown> = { role: "owner", org_ro
       root.render(<div className="mx-auto max-w-sm p-4"><LessonPanelError message={props.message} info={props.info === true} /></div>);
       break;
     case "sheet-waiting":
-      root.render(<div className="mx-auto max-w-sm p-4"><SheetWaitingNotice kind={props.kind} groupId="287049ea-7673-5f46-b17e-41e317fdd7f1" title="Математика 7" lesson={{ id: "lesson-mon", date: "2026-11-23", startTime: "10:00", endTime: "11:30", ...(props.lesson ?? {}) }} moneyRight={props.moneyRight === true} onDecided={(outcome) => w.__log.push(`decided:${outcome}`)} onAlreadyDecided={() => w.__log.push("already-decided")} onWithdrawn={(text) => w.__log.push(`withdrawn:${text}`)} onWithdrawFailed={() => w.__log.push("withdraw-failed")} /></div>);
+      root.render(<div className="mx-auto max-w-sm p-4"><SheetWaitingNotice kind={props.kind} groupId="287049ea-7673-5f46-b17e-41e317fdd7f1" title={props.title ?? "Математика 7"} lesson={{ id: "lesson-mon", date: "2026-11-23", startTime: "10:00", endTime: "11:30", ...(props.lesson ?? {}) }} moneyRight={props.moneyRight === true} onDecided={(outcome) => w.__log.push(`decided:${outcome}`)} onAlreadyDecided={() => w.__log.push("already-decided")} onWithdrawn={(text) => w.__log.push(`withdrawn:${text}`)} onWithdrawFailed={() => w.__log.push("withdraw-failed")} /></div>);
       break;
     case "sheet-waiting-parent":
       root.render(<SheetParent moneyRight={props.moneyRight === true} canWithdraw={props.canWithdraw === true} reportedBy={props.reportedBy} reportedByRole={props.reportedByRole} />);
