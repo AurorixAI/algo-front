@@ -218,8 +218,9 @@ const dryServer = (extra) => (r) => {
       await admin.page.waitForSelector('th[data-lesson-key="2026-11-02_lesson-mon"] [data-column-menu-trigger]');
       await admin.page.waitForTimeout(1500);
       await admin.page.locator('th[data-lesson-key="2026-11-02_lesson-mon"] [data-column-menu-trigger]').evaluate((el) => el.click());
-      await admin.page.click('[role="menuitem"]:has-text("Исправить отметки")');
-      await admin.page.locator(`tr:has-text("${decidedStudent.full_name}") td`).nth(1).locator("button").first().click();
+      await admin.page.locator('[role="menuitem"]:has-text("Исправить отметки")').first().evaluate((el) => el.click());
+      await admin.page.waitForTimeout(600);
+      await admin.page.locator(`tr:has-text("${decidedStudent.full_name}") td`).nth(1).locator("button").first().evaluate((el) => el.click());
       await admin.page.waitForTimeout(500);
       await admin.page.locator('[role="menuitemradio"]:not([aria-checked="true"])').first().evaluate((el) => el.click());
       await admin.page.click('button:visible:has-text("Сохранить исправление")');
