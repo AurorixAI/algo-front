@@ -147,46 +147,75 @@ test("drawer, 2 of 3 come back: ONE probe, a row each with the words of the serv
   await run.page.close();
 });
 
-// The product collects the choices into ONE probe with a pause of 300 ms after the last choice (src/lib/use-pay-from.ts: the timer of `usePayFromPreview`).  The test owns the time: the clock of the page is Playwright's,
-// the pause runs out only when the test winds it (a slow machine cannot stretch «quickly» into «slowly»).
+// The product collects the choices into ONE probe with a pause of 300 ms after the last choice (src/lib/use-pay-from.ts: the timer of `usePayFromPreview`).
+// The RULE (merged inside the window, one ask after each choice when the pause is longer) is proved WITHOUT clicks: the entry mounts the real hook with the real ask of the drawer, the test changes the
+// choices by call and winds the page's own clock (Playwright's, paused) - nothing waits for a frame under a stopped clock, and the speed of the machine decides nothing.
+// The tests WITH clicks run on the real clock and say only what does not depend on speed (LESSONS 144, 190).
 const WINDOW_MS = 300;
 const asked = (run) => X.bulkProbes(run.calls).length;
-/** winds the clock past the window until the probe is asked (the timer of the product is set when the screen has drawn the choice: on a slow machine that is a little later) */
-async function windUntilAsked(run, count) {
-  const stop = Date.now() + 10_000;
-  while (asked(run) < count && Date.now() < stop) {
-    await run.page.clock.runFor(WINDOW_MS + 50);
-    await new Promise((resolve) => setTimeout(resolve, 20));
-  }
-}
-async function openOnOwnClock() {
-  const run = await openDrawer([], []);
+const idsOf = (call) => [...call.body.student_ids].sort();
+const waitAsked = async (run, count) => { for (let i = 0; i < 100 && asked(run) < count; i += 1) await new Promise((resolve) => setTimeout(resolve, 50)); };
+async function openWindow() {
+  const run = await H.openPage(ctx.browser, "pay-from-window.entry.tsx", H.server({ people: H.PEOPLE, undone: [], past: {} }));
   await run.page.clock.install({ time: new Date("2026-11-20T07:00:00Z") });
   await run.page.clock.pauseAt(new Date("2026-11-20T07:00:01Z"));   // from here the time of the page moves ONLY when the test winds it (`runFor`)
+  await run.page.evaluate(() => window.mount());
   return run;
 }
-test("drawer, picking three students quickly (inside the window): exactly ONE bulk probe asked, with all three, none per student", async () => {
-  const run = await openOnOwnClock();
-  for (const name of NAMES) { await H.pick(run.page, name); await run.page.clock.runFor(WINDOW_MS - 100); }   // every pause is shorter than the window
+const choose = (run, ids) => run.page.evaluate((next) => window.choose(next), ids);
+test("the window of the probe: choices that come inside 300 ms are merged into ONE ask with all three, none per student (the real hook, no clicks)", async () => {
+  const run = await openWindow();
+  for (const ids of [["st7"], ["st7", "st8"], ["st7", "st8", "st9"]]) { await choose(run, ids); await run.page.clock.runFor(WINDOW_MS - 100); }   // every pause is shorter than the window
   assert.equal(asked(run), 0, "nothing is asked while the choices keep coming");
-  await windUntilAsked(run, 1);
-  await run.page.clock.runFor(WINDOW_MS * 2);   // a second probe, if the product wanted one, would be asked now
+  await run.page.clock.runFor(WINDOW_MS);
+  await waitAsked(run, 1);
+  await run.page.clock.runFor(WINDOW_MS * 3);   // a second ask, if the product wanted one, would be made now
+  await new Promise((resolve) => setTimeout(resolve, 300));
   assert.equal(asked(run), 1, JSON.stringify(X.bulkProbes(run.calls).map((c) => c.body)));
-  assert.deepEqual([...X.bulkProbes(run.calls)[0].body.student_ids].sort(), ["st7", "st8", "st9"]);
+  assert.deepEqual(idsOf(X.bulkProbes(run.calls)[0]), ["st7", "st8", "st9"]);
   assert.equal(X.singleProbes(run.calls).length, 0);
   await run.page.close();
 });
 
-test("drawer, picking three students with a pause LONGER than the window between them: a probe after each choice (the rule of the product: the choices are not merged), none per student", async () => {
-  const run = await openOnOwnClock();
+test("the window of the probe: a pause LONGER than 300 ms after each choice - an ask after each, each about everybody chosen so far (the choices are not merged, the real hook, no clicks)", async () => {
+  const run = await openWindow();
   const sizes = [];
-  for (const name of NAMES) {
-    await H.pick(run.page, name);
-    await windUntilAsked(run, sizes.length + 1);
+  for (const ids of [["st7"], ["st7", "st8"], ["st7", "st8", "st9"]]) {
+    await choose(run, ids);
+    await run.page.clock.runFor(WINDOW_MS + 50);
+    await waitAsked(run, sizes.length + 1);
     sizes.push(X.bulkProbes(run.calls).at(-1)?.body.student_ids.length);
   }
   assert.equal(asked(run), 3, JSON.stringify(X.bulkProbes(run.calls).map((c) => c.body)));
-  assert.deepEqual(sizes, [1, 2, 3], "each probe asks about everybody chosen so far");
+  assert.deepEqual(sizes, [1, 2, 3], "each ask is about everybody chosen so far");
+  assert.equal(X.singleProbes(run.calls).length, 0);
+  await run.page.close();
+});
+
+const lastAsked = (run) => X.bulkProbes(run.calls).at(-1);
+const waitLastHas = async (run, count) => { for (let i = 0; i < 100 && (lastAsked(run)?.body.student_ids.length ?? 0) < count; i += 1) await run.page.waitForTimeout(50); };
+test("drawer, picking three students by clicks (real clock): the last bulk ask holds all three, none per student - how many asks came before depends on the speed and is not counted", async () => {
+  const run = await openDrawer([], []);
+  for (const name of NAMES) await H.pick(run.page, name);
+  await waitLastHas(run, 3);
+  assert.deepEqual(idsOf(lastAsked(run)), ["st7", "st8", "st9"]);
+  await settled(run, 1);
+  assert.deepEqual(idsOf(lastAsked(run)), ["st7", "st8", "st9"], "nothing later changed the last ask");
+  assert.ok(asked(run) >= 1);
+  assert.equal(X.singleProbes(run.calls).length, 0);
+  await run.page.close();
+});
+
+test("drawer, picking three students with a pause longer than the window (real clock): after each choice the last ask holds everybody chosen so far, none per student", async () => {
+  const run = await openDrawer([], []);
+  const sizes = [];
+  for (const name of NAMES) {
+    await H.pick(run.page, name);
+    await run.page.waitForTimeout(WINDOW_MS + 150);
+    await waitLastHas(run, sizes.length + 1);
+    sizes.push(lastAsked(run)?.body.student_ids.length);
+  }
+  assert.deepEqual(sizes, [1, 2, 3], "each ask is about everybody chosen so far");
   assert.equal(X.singleProbes(run.calls).length, 0);
   await run.page.close();
 });

@@ -21,7 +21,9 @@ async function openPage(browser, entry, answer = () => null, { width = 1280, hei
   // runs BEFORE the page's own scripts (a phone that gives no animation frames, a shortened limit)
   if (initScript) await page.addInitScript(initScript);
   // DOM_CPU_THROTTLE=6: a slow machine on demand (CDP), to show that a test does not depend on the speed of the computer; off by default
-  if (Number(process.env.DOM_CPU_THROTTLE) > 1) await (await page.context().newCDPSession(page)).send("Emulation.setCPUThrottlingRate", { rate: Number(process.env.DOM_CPU_THROTTLE) });
+  // DOM_CPU_SLOW=6 is the same switch under the name of the load probe (LESSONS 190)
+  const slow = Number(process.env.DOM_CPU_SLOW) || Number(process.env.DOM_CPU_THROTTLE) || 0;
+  if (slow > 1) await (await page.context().newCDPSession(page)).send("Emulation.setCPUThrottlingRate", { rate: slow });
   const calls = [];
   const errors = [];
   page.on("pageerror", (error) => errors.push(String(error)));
