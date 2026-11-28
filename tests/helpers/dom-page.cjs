@@ -20,6 +20,8 @@ async function openPage(browser, entry, answer = () => null, { width = 1280, hei
   if (today) await page.clock.setFixedTime(new Date(`${today}T07:00:00Z`));
   // runs BEFORE the page's own scripts (a phone that gives no animation frames, a shortened limit)
   if (initScript) await page.addInitScript(initScript);
+  // DOM_CPU_THROTTLE=6: a slow machine on demand (CDP), to show that a test does not depend on the speed of the computer; off by default
+  if (Number(process.env.DOM_CPU_THROTTLE) > 1) await (await page.context().newCDPSession(page)).send("Emulation.setCPUThrottlingRate", { rate: Number(process.env.DOM_CPU_THROTTLE) });
   const calls = [];
   const errors = [];
   page.on("pageerror", (error) => errors.push(String(error)));

@@ -147,10 +147,46 @@ test("drawer, 2 of 3 come back: ONE probe, a row each with the words of the serv
   await run.page.close();
 });
 
-test("drawer, picking three students quickly: exactly ONE bulk probe asked", async () => {
-  const run = await openDrawer([], NAMES);
-  await run.page.waitForTimeout(1200);
-  assert.equal(X.bulkProbes(run.calls).length, 1, JSON.stringify(X.bulkProbes(run.calls).map((c) => c.body)));
+// The product collects the choices into ONE probe with a pause of 300 ms after the last choice (src/lib/use-pay-from.ts: the timer of `usePayFromPreview`).  The test owns the time: the clock of the page is Playwright's,
+// the pause runs out only when the test winds it (a slow machine cannot stretch «quickly» into «slowly»).
+const WINDOW_MS = 300;
+const asked = (run) => X.bulkProbes(run.calls).length;
+/** winds the clock past the window until the probe is asked (the timer of the product is set when the screen has drawn the choice: on a slow machine that is a little later) */
+async function windUntilAsked(run, count) {
+  const stop = Date.now() + 10_000;
+  while (asked(run) < count && Date.now() < stop) {
+    await run.page.clock.runFor(WINDOW_MS + 50);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
+}
+async function openOnOwnClock() {
+  const run = await openDrawer([], []);
+  await run.page.clock.install({ time: new Date("2026-11-20T07:00:00Z") });
+  await run.page.clock.pauseAt(new Date("2026-11-20T07:00:01Z"));   // from here the time of the page moves ONLY when the test winds it (`runFor`)
+  return run;
+}
+test("drawer, picking three students quickly (inside the window): exactly ONE bulk probe asked, with all three, none per student", async () => {
+  const run = await openOnOwnClock();
+  for (const name of NAMES) { await H.pick(run.page, name); await run.page.clock.runFor(WINDOW_MS - 100); }   // every pause is shorter than the window
+  assert.equal(asked(run), 0, "nothing is asked while the choices keep coming");
+  await windUntilAsked(run, 1);
+  await run.page.clock.runFor(WINDOW_MS * 2);   // a second probe, if the product wanted one, would be asked now
+  assert.equal(asked(run), 1, JSON.stringify(X.bulkProbes(run.calls).map((c) => c.body)));
+  assert.deepEqual([...X.bulkProbes(run.calls)[0].body.student_ids].sort(), ["st7", "st8", "st9"]);
+  assert.equal(X.singleProbes(run.calls).length, 0);
+  await run.page.close();
+});
+
+test("drawer, picking three students with a pause LONGER than the window between them: a probe after each choice (the rule of the product: the choices are not merged), none per student", async () => {
+  const run = await openOnOwnClock();
+  const sizes = [];
+  for (const name of NAMES) {
+    await H.pick(run.page, name);
+    await windUntilAsked(run, sizes.length + 1);
+    sizes.push(X.bulkProbes(run.calls).at(-1)?.body.student_ids.length);
+  }
+  assert.equal(asked(run), 3, JSON.stringify(X.bulkProbes(run.calls).map((c) => c.body)));
+  assert.deepEqual(sizes, [1, 2, 3], "each probe asks about everybody chosen so far");
   assert.equal(X.singleProbes(run.calls).length, 0);
   await run.page.close();
 });
