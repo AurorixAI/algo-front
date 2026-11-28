@@ -2,7 +2,7 @@ import { mkdirSync } from "node:fs";
 import type { Page } from "@playwright/test";
 import { test, expect } from "../support/fixtures";
 import { Org, type GroupInfo } from "../support/api";
-import { addDays, businessNow, weekdayOf } from "../support/time";
+import { addDays, businessNow, requireBillingDayStand, weekdayOf } from "../support/time";
 import { dm, expectNoHorizontalScroll, fillDate, moneyPattern, pickOption, toast } from "../support/ui";
 
 /**
@@ -244,7 +244,7 @@ test.describe("monthly centre", () => {
     // The premise of this check is «the common month starts TODAY»: its billing day is today's day of the month, and the centre allows 1..28.  On the 29th-31st the premise
     // cannot be built (found by the stand clock on 30.11: the student joined the last day of the old month with no lesson left in it, so nothing was charged and
     // the row never reached «К оплате»).  The check is skipped on those days only; it is not weakened on the others.
-    test.skip(businessNow().day > 28, "the billing day of a centre is 1..28: «the common month starts today» cannot be set on the 29th-31st");
+    requireBillingDayStand();
     const project = info.project.name;
     const org = await Org.create("Месяц 25.10");
     const fee = 600000;

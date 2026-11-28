@@ -172,3 +172,12 @@ export function payrollLine(fee: number, percent: string, lessons: number, divis
   const denominator = 10_000n * BigInt(divisor);
   return Number((2n * numerator + denominator) / (2n * denominator));
 }
+
+/**
+ * The money tests of the lessons set «the common month starts today» (billing day 1..28).  The stand is started on the 1st..28th (e2e/scripts/stand-time.mjs); on the 29th-31st the test FAILS
+ * with the reason, it is never skipped silently (a green run without the money tests is not green).
+ */
+export function requireBillingDayStand(): void {
+  const { day, date } = businessNow();
+  if (day > 28) throw new Error(`the stand shows ${date}, the 29th-31st: the rule of the stand time (the 1st of the next month, e2e/scripts/stand-time.mjs) is broken - the billing day of a centre is 1..28`);
+}

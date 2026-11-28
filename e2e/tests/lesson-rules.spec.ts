@@ -1,6 +1,6 @@
 import { test, expect } from "../support/fixtures";
 import { Org, type GroupInfo, type LessonInfo, type Staff } from "../support/api";
-import { addDays, businessNow, weekdayOf } from "../support/time";
+import { addDays, businessNow, requireBillingDayStand, weekdayOf } from "../support/time";
 import { clockReaches } from "../support/clock";
 import { expectNoHorizontalScroll, moneyPattern } from "../support/ui";
 
@@ -209,7 +209,7 @@ const OUTCOMES = [
 
 for (const outcome of OUTCOMES) {
   test(`money: the teacher reports, the owner sees the sum BEFORE and the student's statement AFTER - «${outcome.label}» (${outcome.recalculated === 0 ? "no recalculation" : `recalculation ${PER_LESSON}`})`, async ({ signIn }) => {
-    test.skip(businessNow().day > 28, "the billing day of a centre is 1..28: «the common month starts today» cannot be set on the 29th-31st");
+    requireBillingDayStand();
     test.setTimeout(300_000);
     const world = await moneyWorld(`${outcome.key}`);
     const before = await world.statement();
@@ -246,7 +246,7 @@ for (const outcome of OUTCOMES) {
 }
 
 test("roles: an administrator WITHOUT the money right sees «решает владелец» with no sums, takes back HIS cancellation; the owner then has nothing to decide", async ({ signIn }) => {
-  test.skip(businessNow().day > 28, "the billing day of a centre is 1..28");
+  requireBillingDayStand();
   test.setTimeout(300_000);
   const world = await moneyWorld("admin", { adminWithoutRight: true });
   const admin = world.admin!;
@@ -276,7 +276,7 @@ test("roles: an administrator WITHOUT the money right sees «решает вла
 });
 
 test("@mobile the journal on a phone: the owner decides a waiting cancellation from the column menu of the lesson - the window fits the screen and the money is the server's", async ({ signIn }) => {
-  test.skip(businessNow().day > 28, "the billing day of a centre is 1..28");
+  requireBillingDayStand();
   test.setTimeout(300_000);
   const world = await moneyWorld("phone");
   await reportBy(world.teacher, world.group, world.lesson, "Отключили свет");
