@@ -795,7 +795,7 @@ export default function TeacherSchedulePage() {
         }
         // the border is the END of the lesson in the clock of the centre (`lessonHasEnded`), not the date
         if (lessonHasEnded({ date: lesson.occurrenceDate, today: businessDate, endTime: lesson.endTime })) {
-          return { lesson, lifecycle, label: "Не начат", tone: "amber" as const };
+          return { lesson, lifecycle, label: "Не отмечен", tone: "amber" as const };
         }
         return { lesson, lifecycle, label: "Запланирован", tone: "violet" as const };
       })

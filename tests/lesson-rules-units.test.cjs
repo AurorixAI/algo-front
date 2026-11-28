@@ -393,3 +393,13 @@ test("FIX4-B1: ONE border of «Запланирован» / «Не отмече�
   assert.equal(C.lessonHasEnded({ date: "2026-11-25", today: "2026-11-26", endTime: "23:00" }), true, "a past day");
   assert.equal(C.lessonHasEnded({ date: "2026-11-27", today: "2026-11-26", endTime: "08:00" }), false, "a later day");
 });
+
+test("FIX4: the three screens that read lessonHasEnded say ONE word «Не отмечен»; the teacher schedule has no «Не начат»", () => {
+  const fs = require("node:fs");
+  for (const file of ["src/components/groups/group-attendance-journal.tsx", "src/components/groups/group-schedule-overview.tsx", "src/app/teacher/schedule/page.tsx"]) {
+    const text = fs.readFileSync(path.join(root, file), "utf8");
+    assert.match(text, /lessonHasEnded\(/, file);
+    assert.match(text, /"Не отмечен"/, file);
+    assert.doesNotMatch(text, /"Не начат"/, file);
+  }
+});

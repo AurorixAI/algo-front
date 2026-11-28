@@ -4,6 +4,7 @@ const assert = require("node:assert/strict");
 const test = require("node:test");
 const { setup, OWNER } = require("./helpers/money2-w2.cjs");
 const { openPage } = require("./helpers/dom-page.cjs");
+const { deferred } = require("./helpers/dom-answers.cjs");
 const { answer, listServer, WORLD_DAY, plain } = require("./helpers/lesson-rules-answers.cjs");
 const { layoutProbe } = require("./helpers/layout-probe.cjs");
 
@@ -117,3 +118,37 @@ for (const width of [1280, 375]) {
     await page.close();
   });
 }
+
+test("FIX4: while another page is read the counter names the page that is on screen; after the success the new one; after a failure the old one", async () => {
+  const hold = deferred();
+  let fail = false;
+  const server = listServer({
+    decided: { ...answer("history"), total: 120 },
+    extra: (request) => (isHistory(request) && offsetOf(request) === 50 ? hold.promise.then(() => (fail ? { status: 500, json: { detail: { code: "SERVER", message: "boom" } } } : { json: { ...answer("history"), total: 120 } })) : null),
+  });
+  const { page, calls } = await openHistory(server);
+  await page.waitForSelector('[data-testid="audit-row"]');
+  const counter = async () => plain(await page.textContent('[data-testid="page-counter"]'));
+  assert.equal(await counter(), "1 из 3");
+  await page.click('button[aria-label="Следующая страница"]');
+  await page.waitForTimeout(200);
+  assert.equal(await counter(), "1 из 3", "reading: the list on screen is page 1");
+  hold.open();
+  await page.waitForFunction(() => document.querySelector('[data-testid="page-counter"]').textContent.replace(/[\s\u00a0]+/g, " ").trim() === "2 из 3");
+  await page.close();
+  const hold2 = deferred();
+  fail = true;
+  const second = listServer({
+    decided: { ...answer("history"), total: 120 },
+    extra: (request) => (isHistory(request) && offsetOf(request) === 50 ? hold2.promise.then(() => ({ status: 500, json: { detail: { code: "SERVER", message: "boom" } } })) : null),
+  });
+  const run = await openHistory(second);
+  await run.page.waitForSelector('[data-testid="audit-row"]');
+  await run.page.click('button[aria-label="Следующая страница"]');
+  await run.page.waitForTimeout(200);
+  assert.equal(plain(await run.page.textContent('[data-testid="page-counter"]')), "1 из 3");
+  hold2.open();
+  await run.page.waitForSelector('[data-testid="page-error"]');
+  assert.equal(plain(await run.page.textContent('[data-testid="page-counter"]')), "1 из 3", "failure: the old page");
+  await run.page.close();
+});

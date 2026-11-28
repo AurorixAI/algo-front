@@ -118,6 +118,8 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
   const shownRef = useRef<{ key: string; page: number } | null>(null);
   const keepShownPage = useRef(false);
   const [pageBusy, setPageBusy] = useState(false);
+  /** the number of the page whose list is on screen: the counter of the pager says it, not the requested one */
+  const [shownPage, setShownPage] = useState(0);
   /** the number of the page that did not load (null: all good): «Повторить» asks it again */
   const [pageFailed, setPageFailed] = useState<number | null>(null);
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
@@ -164,7 +166,8 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
 
   // search: a pause after the last key
   useEffect(() => {
-    const timer = window.setTimeout(() => { setSearch(searchInput.trim()); setPage(0); }, 300);
+    // the page goes back to the first only when the words of the search really changed (the first run of the effect, 300 ms after opening, must not undo a turn of the page)
+    const timer = window.setTimeout(() => { const next = searchInput.trim(); setSearch((previous) => { if (previous !== next) setPage(0); return next; }); }, 300);
     return () => window.clearTimeout(timer);
   }, [searchInput]);
 
@@ -211,6 +214,7 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
       setLoadError(null);
       setPageFailed(null);
       shownRef.current = { key: readKey, page };
+      setShownPage(page);
       setItems(data.items ?? []);
       setTotal(data.total ?? 0);
       setPendingTotal(data.pendingTotal ?? 0);
@@ -631,13 +635,13 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
           <span>Всего: {total}</span>
           {pageFailed !== null && (
             <div data-testid="page-error" role="alert" className="flex min-w-0 items-center gap-2 text-danger-700">
-              <span className="min-w-0 break-words">Не удалось открыть страницу {pageFailed + 1}. Показана страница {page + 1}.</span>
+              <span className="min-w-0 break-words">Не удалось открыть страницу {pageFailed + 1}. Показана страница {shownPage + 1}.</span>
               <Button type="button" data-testid="page-retry" variant="secondary" size="sm" onClick={() => setPage(pageFailed)}>Повторить</Button>
             </div>
           )}
           <div className="flex items-center gap-2">
             <Button type="button" disabled={page === 0 || pageBusy} onClick={() => setPage((current) => Math.max(0, current - 1))} aria-label="Предыдущая страница" variant="secondary" size="icon"><ChevronLeft className="h-4 w-4" /></Button>
-            <span>{page + 1} из {pageCount}</span>
+            <span data-testid="page-counter">{shownPage + 1} из {pageCount}</span>
             <Button type="button" disabled={page + 1 >= pageCount || pageBusy} onClick={() => setPage((current) => current + 1)} aria-label="Следующая страница" variant="secondary" size="icon"><ChevronRight className="h-4 w-4" /></Button>
           </div>
         </div>
