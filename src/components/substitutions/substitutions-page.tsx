@@ -102,6 +102,8 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
   const [expiringOnly, setExpiringOnly] = useState(false);
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
+  /** The words of the search the page was last reset for: compared outside the updater (an updater must stay pure; strict mode runs it twice). */
+  const searchRef = useRef("");
   const [page, setPage] = useState(0);
   const [items, setItems] = useState<SubstitutionListRow[]>([]);
   /** LESSON-RULES: the cancellations that wait for the owner (the number of the server; the rows are in `items`). */
@@ -167,7 +169,7 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
   // search: a pause after the last key
   useEffect(() => {
     // the page goes back to the first only when the words of the search really changed (the first run of the effect, 300 ms after opening, must not undo a turn of the page)
-    const timer = window.setTimeout(() => { const next = searchInput.trim(); setSearch((previous) => { if (previous !== next) setPage(0); return next; }); }, 300);
+    const timer = window.setTimeout(() => { const next = searchInput.trim(); if (searchRef.current !== next) { searchRef.current = next; setPage(0); } setSearch(next); }, 300);
     return () => window.clearTimeout(timer);
   }, [searchInput]);
 

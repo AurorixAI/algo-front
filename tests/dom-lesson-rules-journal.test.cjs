@@ -267,3 +267,26 @@ for (const width of [1280, 375]) {
     await page.close();
   });
 }
+
+// the clock of the page: a lesson of today that ends while the page is open turns from «Запланирован» to «Не отмечен» WITHOUT a reload
+test("a lesson of today (11:00–12:00) is «Запланирован» at 12:00, «Не отмечен» after the common 30-second clock passes 12:01 - no reload", async () => {
+  const journal = JSON.parse(JSON.stringify(JOURNAL));
+  journal.lessons.push({ ...journal.lessons.find((l) => l.id === "lesson-mon" && l.date === "2026-11-30"), id: "lesson-ends", instanceKey: `${WORLD_DAY}_lesson-ends`, date: WORLD_DAY, startTime: "11:00", endTime: "12:00", status: "scheduled" });
+  const run = await openPage(ctx.browser, "lesson-rules.entry.tsx", (request) => (/\/attendance(\?|$)/.test(request.path + (request.query ? `?${request.query}` : "")) ? { json: journal } : null), { width: 1280, height: 900 });
+  const { page, calls, errors } = run;
+  await page.clock.install({ time: new Date(`${WORLD_DAY}T07:00:00Z`) });   // 12:00 in Tashkent
+  await page.evaluate(([user, props]) => window.mount("journal", user, props), [TEACHER, { groupId: journal.groupId, students: STUDENTS, adminMode: false }]);
+  const key = `th[data-lesson-key="${WORLD_DAY}_lesson-ends"]`;
+  await page.waitForSelector(key);
+  const reads = () => calls.filter((c) => /\/attendance(\?|$)/.test(c.path)).length;
+  const before = reads();
+  assert.match(plain(await page.textContent(key)), /Запланирован/);
+  await page.clock.runFor(31_000);   // 12:00:31 - the minute of the end is still not over
+  assert.match(plain(await page.textContent(key)), /Запланирован/);
+  await page.clock.runFor(31_000);   // 12:01:02
+  assert.match(plain(await page.textContent(key)), /Не отмечен/);
+  assert.doesNotMatch(plain(await page.textContent(key)), /Запланирован/);
+  assert.equal(reads(), before, "the word changed by the clock, the journal was not read again");
+  assert.deepEqual(noise(errors), []);
+  await page.close();
+});

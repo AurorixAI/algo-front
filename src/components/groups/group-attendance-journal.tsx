@@ -101,6 +101,7 @@ import {
   notYourLessonText,
   substituteLabel,
 } from "@/lib/lesson-teacher";
+import { useNow } from "@/lib/use-now";
 import { assignActionLabel, cancelLessonLabel, CORRECT_MARKS_LABEL, FINISH_LESSON_LABEL, lessonHasEnded, lessonHasStarted, MARK_LESSON_LABEL, pastMarkLockReason, pastSubstituteLockReason } from "@/lib/schedule-card-actions";
 import type { LiveExamItem } from "@/lib/ops-b-types";
 import { askConfirm } from "@/lib/confirm-dialog";
@@ -518,6 +519,7 @@ export function GroupAttendanceJournal({
   const historyScrollRef = useRef<HTMLDivElement | null>(null);
   const openCellContainerRef = useRef<HTMLTableCellElement | null>(null);
 
+  useNow();   // the common 30-second clock: a lesson of today that ends while the page is open changes its word without a reload (as in the schedule of the teacher)
   const today = formatBusinessDate();
   const period = useMemo(() => journalPeriod(anchorDate, viewMode), [anchorDate, viewMode]);
 

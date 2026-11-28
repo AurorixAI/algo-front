@@ -41,6 +41,7 @@ import { NO_TEACHER_SCHEDULE_HINT, nextBusinessDate, type WeeklyLesson } from "@
 import { weeklyResolver } from "@/lib/weekly-lessons";
 import { outOfPlan, todayPlanLines } from "@/lib/schedule-plan";
 import { canManageMoney } from "@/lib/money-effects";
+import { useNow } from "@/lib/use-now";
 import { addedByLine, assignActionLabel, lessonHasEnded, lessonHasStarted, pastMarkLockReason, assignLockReason, lessonTitle, roomLine, scheduleCardActions, movedFromText, sheetNotes, teacherLine } from "@/lib/schedule-card-actions";
 import { Button } from "@/components/ui/button";
 import { waitingLessonHint } from "@/lib/lesson-rules";
@@ -159,6 +160,7 @@ export function GroupScheduleOverview({ groupId, groupName = null, viewerRole = 
   /** The group has a teacher; without one the weekly lessons are still saved, with a hint (P1). */
   teacherAssigned?: boolean;
 }) {
+  useNow();   // the common 30-second clock: a lesson of today that ends while the page is open changes its word without a reload
   const today = formatBusinessDate();
   const { user } = useAuthStore();
   const { showToast, toastNode } = useToast();
