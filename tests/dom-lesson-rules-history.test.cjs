@@ -87,7 +87,7 @@ test("the tick «Только задним числом» asks the same list wit
   const { page, calls } = run;
   await page.waitForSelector('[data-testid="audit-row"]');
   await page.click('[data-testid="backdated-only"] input[type="checkbox"], [data-testid="backdated-only"]');
-  await page.waitForFunction(() => document.querySelectorAll('[data-testid="substitution-row"]').length === 0);
+  await page.waitForFunction(() => document.querySelectorAll('[data-testid="substitution-row"]').length === 0 && document.querySelectorAll('[data-testid="audit-row"]').length === 6, null, { timeout: 5000 });   // the consequence of the answer: the six rows of the filtered list
   assert.equal(await page.locator('[data-testid="audit-row"]').count(), 6);
   assert.ok(calls.some((c) => isHistory(c) && /backdated_only=true/.test(c.query)), "the server filters the same list");
   assert.ok(!calls.some((c) => isHistory(c) && /backdatedOnly/.test(c.query)), "the parameter is the server's own name");

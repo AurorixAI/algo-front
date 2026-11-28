@@ -50,6 +50,7 @@ for (const width of [1280, 375]) {
     state.fail = false;
     await page.click('[data-testid="page-retry"]');
     await page.waitForSelector('[data-testid="page-error"]', { state: "detached" });
+    await page.waitForFunction(() => /2\s+из\s+3/.test(document.body.textContent), null, { timeout: 5000 });   // the consequence of the answer, not the end of the error
     assert.match(plain(await page.textContent("body")), /2 из 3/);
     assert.equal(await page.locator('[data-testid="page-error"]').count(), 0);
     assert.equal(state.asked, 2);
@@ -68,6 +69,7 @@ test("a failed turn and then the other arrow: the error goes away with the new r
   state.fail = false;
   await page.click('button[aria-label="Следующая страница"]');
   await page.waitForSelector('[data-testid="page-error"]', { state: "detached" });
+  await page.waitForFunction(() => /2\s+из\s+3/.test(document.body.textContent), null, { timeout: 5000 });   // the consequence of the answer, not the end of the error
   assert.match(plain(await page.textContent("body")), /2 из 3/);
   assert.equal(await page.locator('[data-testid="page-error"]').count(), 0);
   await page.close();

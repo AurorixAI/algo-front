@@ -34,6 +34,8 @@ async function openPage(browser, entry, answer = () => null, { width = 1280, hei
     const record = { method: request.method(), path: url.pathname.replace(/^\/api\/v1/, ""), query: url.search.replace(/^\?/, ""), headers: request.headers(), body: request.postData() ? JSON.parse(request.postData()) : undefined };
     calls.push(record);
     const result = (await answer(record)) || { status: 404, json: { detail: { code: "NOT_FOUND", message: "no answer in the test" } } };
+    // DOM_ANSWER_DELAY_MS=400: every answer of the stand comes late, to show that a test waits for the consequence of the answer; 0 (off) by default
+    if (Number(process.env.DOM_ANSWER_DELAY_MS) > 0) await new Promise((resolve) => setTimeout(resolve, Number(process.env.DOM_ANSWER_DELAY_MS)));
     return route.fulfill({ status: result.status ?? 200, contentType: "application/json", headers: { "access-control-allow-origin": ORIGIN, "access-control-allow-credentials": "true" }, body: JSON.stringify(result.json ?? {}) });
   });
   await page.goto(`${ORIGIN}/__dom`);

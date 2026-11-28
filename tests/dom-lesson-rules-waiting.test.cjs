@@ -91,6 +91,7 @@ for (const name of ["dry_run_zero_packages", "dry_run_zero_nobody_charged", "dry
     const { page } = run;
     await page.click(MON);
     await page.click('[data-testid="waiting-outcome-centre"]');
+    await page.waitForFunction((text) => (document.querySelector('[data-testid="waiting-caption"]')?.textContent ?? "").includes(text), zero.zero_text, { timeout: 5000 });   // the sentence of the dry run, not the empty caption before it
     const caption = plain(await page.textContent('[data-testid="waiting-caption"]'));
     assert.equal(caption, `${zero.zero_text} Преподавателю урок не оплачивается.`);
     assert.ok(!/Перерасчёт 0|0 учени/.test(await page.textContent('[role="dialog"]')), "no «0 ученикам» anywhere in the window");
@@ -107,6 +108,7 @@ test("«Праздник, выходной»: no recalculation, the button names
   const { page, calls } = run;
   await page.click(MON);
   await page.click('[data-testid="waiting-outcome-holiday"]');
+  await page.waitForFunction(() => /Ученикам: без перерасчёта/.test(document.querySelector('[data-testid="waiting-caption"]')?.textContent ?? ""), null, { timeout: 5000 });   // the sentence of the dry run, not the empty caption before it
   assert.equal(plain(await page.textContent('[data-testid="waiting-caption"]')), "Ученикам: без перерасчёта. Преподавателю урок не оплачивается.");
   assert.equal(plain(await page.textContent('[data-testid="waiting-confirm"]')), "Подтвердить: праздник, выходной");
   await page.click('[data-testid="waiting-outcome-held"]');

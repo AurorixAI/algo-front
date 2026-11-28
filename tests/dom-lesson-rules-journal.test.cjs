@@ -140,6 +140,7 @@ for (const width of [1280, 375]) {
     assert.deepEqual(sent[0].body, { lessonId: "lesson-mon", lessonDate: "2026-11-23", expectedKind: "unconfirmed" });
     await until(() => calls.filter((c) => /\/attendance$/.test(c.path) && c.method === "GET").length > before);
     assert.ok(calls.filter((c) => /\/attendance$/.test(c.path) && c.method === "GET").length > before, "the journal is read again");
+    await until(() => calls.some((c) => /\/substitutions\/summary/.test(c.path)));   // the badge is read after the answer of the road, not at the same moment
     assert.ok(calls.some((c) => /\/substitutions\/summary/.test(c.path)), "the badge of «Замены» is read again");
     await page.close();
   });
