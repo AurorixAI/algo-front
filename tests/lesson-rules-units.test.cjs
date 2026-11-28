@@ -153,6 +153,16 @@ test("the answer of the dry run is CHECKED, not assumed: the real preview is a p
   assert.equal(L.previewVerdict("x").kind, "broken");
 });
 
+test("the dry run of «праздник»: zero_reason `holiday` and the server's sentence are kept (not turned to null); the window shows the holiday words of the server", () => {
+  const answer = answers("dry_run_confirm_holiday");
+  assert.deepEqual([answer.to, answer.zero_reason, answer.zero_text], ["holiday", "holiday", "Праздник — перерасчёта нет."]);
+  const verdict = L.previewVerdict(answer);
+  assert.equal(verdict.kind, "preview");
+  assert.deepEqual([verdict.preview.zero_reason, verdict.preview.zero_text], ["holiday", "Праздник — перерасчёта нет."]);
+  assert.equal(L.outcomeCaption("holiday", verdict.preview), answer.holiday_text);
+  assert.equal(L.previewVerdict({ ...answer, zero_reason: "other" }).preview.zero_reason, null, "an unknown code is still not trusted");
+});
+
 test("an archived group cannot give the lesson back (restore_allowed false): the window offers TWO outcomes; otherwise three", () => {
   assert.deepEqual(L.offeredOutcomes(null).map((o) => o.key), ["centre", "holiday", "held"]);
   assert.deepEqual(L.offeredOutcomes({ restore_allowed: true }).map((o) => o.key), ["centre", "holiday", "held"]);
@@ -226,19 +236,23 @@ test("the salary line of the panel: «В зарплате за ноябрь: +25
   assert.equal(L.salaryLineOf(answers("dry_run_return_payroll").moneyEffects, "2026-11-26"), "В зарплате за ноябрь: +168\u00a0750\u00a0сум");
 });
 
-test("the teacher's block: the waiting cancellations first (the nearest lesson), the decided ones after; ONE row per lesson; the chips of the real answer mine_teacher", () => {
+test("the teacher's block: the waiting cancellations first (the nearest lesson), the decided ones after; ONE row per lesson (the server sends one); the chips of the real answer mine_teacher", () => {
   const mine = answers("mine_teacher");
   const NOW = Date.parse("2026-11-26T07:00:00Z");
-  assert.equal(mine.items.length, 12);
+  assert.equal(mine.items.length, 9, "the server sends ONE record per lesson");
   const ordered = Subs.recentRequests(mine.items, NOW);
-  // the three system records `closed` of the returned lessons (02.11, 09.11, 25.11) are hidden: each of the lessons has its own cancellation of the teacher - ONE row per lesson
   // all the rows of the unload were decided at the same moment: the order inside the decided ones is the server's (stable), the waiting ones - the nearest lesson first; the two one-off rows (14.11, 17.11) are older than the cancellations
   assert.deepEqual(ordered.slice(0, 2).map((i) => `${i.lesson.date}:${i.outcome}`), ["2026-11-18:cancel_waiting", "2026-11-23:cancel_waiting"], "the waiting ones first, the nearest lesson first (by the date of the lesson, not by the order of the server)");
   const decidedRows = ordered.slice(2).map((i) => `${i.lesson.date}:${i.outcome}`);
   assert.deepEqual(decidedRows.slice().sort(), [
     "2026-11-02:included_in_payroll", "2026-11-09:lesson_restored", "2026-11-11:cancelled_centre", "2026-11-14:one_off_added", "2026-11-16:cancelled_holiday", "2026-11-17:one_off_added", "2026-11-25:lesson_restored",
   ], "the seven decided ones - one row per lesson (the order among rows decided at one moment is the server's tie-break)");
-  assert.deepEqual(Subs.oneRowPerReturnedLesson(mine.items).filter((i) => i.status === "closed" && i.outcome === "lesson_restored").map((i) => i.lesson.date), []);
+  // the answer has no duplicate: no system record of a return next to the cancellation of the same lesson, and the screen drops nothing
+  const lessonKeys = mine.items.map((i) => `${i.group.id}|${i.lesson.date}|${i.lesson.lessonId ?? ""}`);
+  assert.equal(new Set(lessonKeys).size, lessonKeys.length, "one record per lesson in the answer");
+  assert.equal(mine.items.filter((i) => i.status === "closed" && i.outcome === "lesson_restored").length, 0);
+  assert.equal(Subs.oneRowPerReturnedLesson, undefined, "the screen keeps no filter of the duplicate: the rule is the server's (LESSONS 139)");
+  assert.equal(ordered.length, mine.items.length, "every record of the answer is a row (the last 14 days)");
   assert.deepEqual(ordered.map((i) => O.outcomeOf(i, "teacher").text).sort(), [
     "Отмена ждёт подтверждения", "Отмена ждёт подтверждения", "Включён в зарплату", "Отменён: по вине центра",
     "Урок был — отметьте посещаемость", "Урок был — отметит администратор", "Отменён: праздник", "Разовый урок", "Разовый урок",

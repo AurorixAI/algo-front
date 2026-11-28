@@ -24,7 +24,7 @@ const mineReal = () => answer("mine_teacher");
 const rowOf = (page, date) => page.locator('[data-testid="my-request-row"]', { hasText: date });
 
 for (const width of [375, 1280]) {
-  test(`${width}: one list «Запросы и изменения уроков» - ONE row per lesson (the system record of a return is hidden), «Отозвать» only where the server says canWithdraw, the outcomes in the words of the server (the real answer mine_teacher)`, async () => {
+  test(`${width}: one list «Запросы и изменения уроков» - ONE row per lesson (the server sends one record per lesson), «Отозвать» only where the server says canWithdraw, the outcomes in the words of the server (the real answer mine_teacher)`, async () => {
     const { page, errors } = await openBlock(mineOf(mineReal()), width);
     assert.match(plain(await page.textContent("section h2")), /Запросы и изменения уроков/);
     const rows = page.locator('[data-testid="my-request-row"]');
@@ -32,7 +32,7 @@ for (const width of [375, 1280]) {
     assert.equal(await rows.count(), 7, "2 waiting + the last 5 decided");
     assert.equal(plain(await page.textContent('[data-testid="my-requests-toggle"]')), "Показать все (9)");
     await page.click('[data-testid="my-requests-toggle"]');
-    assert.equal(await rows.count(), 9, "12 records of the answer (two of them the one-off lessons) minus the three system records of the returned lessons: each of the three lessons has a cancellation of the teacher");
+    assert.equal(await rows.count(), 9, "9 records of the answer (two of them the one-off lessons): one per lesson, every one is a row");
     const texts = (await rows.allTextContents()).map(plain);
     assert.match(texts[0], /ср, 18\.11 · Математика 7/);
     assert.match(texts[0], /Отмена ждёт подтверждения/);
@@ -55,15 +55,14 @@ for (const width of [375, 1280]) {
   });
 }
 
-test("a returned lesson is ONE row: the cancellation of the teacher stands (whatever its outcome), the system record `closed` of the return is hidden - 09.11, 25.11 and 02.11 («Включён в зарплату»)", async () => {
+test("a returned lesson is ONE row: the answer of the server has ONE record per lesson (09.11, 25.11 and 02.11 «Включён в зарплату») and the screen shows each of them once", async () => {
   const mine = mineReal();
-  const system = mine.items.filter((i) => i.status === "closed" && i.outcome === "lesson_restored");
-  assert.equal(system.length, 3, "the real answer has three system records of a return");
+  assert.equal(mine.items.filter((i) => i.status === "closed" && i.outcome === "lesson_restored").length, 0, "the real answer has no system record of a return next to the cancellation");
   const run = await openBlock(mineOf(mine));
   const { page } = run;
   assert.equal(await rowOf(page, "пн, 09.11").count(), 1);
   assert.equal(await rowOf(page, "ср, 25.11").count(), 1);
-  assert.equal(await rowOf(page, "пн, 02.11").count(), 1, "02.11: ONE row «Включён в зарплату» - the system record of the return is hidden");
+  assert.equal(await rowOf(page, "пн, 02.11").count(), 1, "02.11: ONE row «Включён в зарплату» - one row, as the server sent it");
   assert.match(plain(await rowOf(page, "пн, 02.11").textContent()), /Включён в зарплату/);
   assert.doesNotMatch(plain(await rowOf(page, "пн, 02.11").textContent()), /Урок возвращён/);
   await page.close();
@@ -137,7 +136,6 @@ test("the card «Ближайшее действие» says «Не закрыт 
 
 test("FIX4-B3: the answer of the new server (one record per returned lesson) - the block shows the waiting and the last 5 decided, the toggle opens and closes the rest; few rows - no toggle", async () => {
   const mine = mineReal();
-  mine.items = mine.items.filter((i) => !(i.status === "closed" && i.outcome === "lesson_restored"));
   const run = await openBlock(mineOf(mine));
   const { page } = run;
   const rows = page.locator('[data-testid="my-request-row"]');

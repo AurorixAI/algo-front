@@ -107,8 +107,8 @@ export interface WaitingPreview {
   per_student: number | null;
   total: number;
   recalc_off: boolean;
-  /** Why the recalculation is zero (`packages` / `nobody_charged` / `one_off`; null when it is not) and the server's own sentence for it. */
-  zero_reason?: "packages" | "nobody_charged" | "one_off" | null;
+  /** Why the recalculation is zero (`packages` / `nobody_charged` / `one_off` / `holiday`; null when it is not) and the server's own sentence for it. */
+  zero_reason?: "packages" | "nobody_charged" | "one_off" | "holiday" | null;
   zero_text?: string | null;
   restore_allowed: boolean;
   window_days: number;
@@ -142,7 +142,7 @@ export function previewVerdict(answer: unknown): PreviewVerdict {
         per_student: isNumber(out.per_student) ? out.per_student : null,
         total: out.total,
         recalc_off: out.recalc_off,
-        zero_reason: zero === "packages" || zero === "nobody_charged" || zero === "one_off" ? zero : null,
+        zero_reason: zero === "packages" || zero === "nobody_charged" || zero === "one_off" || zero === "holiday" ? zero : null,
         zero_text: isText(out.zero_text) ? out.zero_text : null,
         restore_allowed: out.restore_allowed !== false,
         window_days: isNumber(out.window_days) ? out.window_days : 0,
