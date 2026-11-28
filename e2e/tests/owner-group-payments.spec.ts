@@ -1,6 +1,6 @@
 import { test, expect } from "../support/fixtures";
 import { Org } from "../support/api";
-import { addDays, businessNow } from "../support/time";
+import { addDays, businessNow, requireBillingDayStand } from "../support/time";
 import { expectNoHorizontalScroll, groupMenuItem, moneyPattern, openPriceMode, toast } from "../support/ui";
 
 /**
@@ -158,6 +158,7 @@ test("the header of the group has no «Изменить…»; a changed «Тип
 });
 
 test("the header of the group: the price chip and «Цена группы…» in «⋯» (the same dialog as «Цены групп»), «Долг N» leads to the tab «Оплаты»", async ({ signIn }) => {
+  requireBillingDayStand(6, "the term of payment of 5 days of the running month has to be over: on the 1st-5th «Должников» is «К оплате»");
   const teacher = await org.addStaff("teacher", "Ценовой");
   const group = await org.createGroup({ name: "Группа Г5", teacherId: teacher.userId });
   // Money-1 B7: a REAL debtor (charged from ten days ago: overdue) and a student who only WAITS (joined today); the price is set below, the first price reaches back to the running periods

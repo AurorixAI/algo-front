@@ -244,7 +244,7 @@ test.describe("monthly centre", () => {
     // The premise of this check is «the common month starts TODAY»: its billing day is today's day of the month, and the centre allows 1..28.  On the 29th-31st the premise
     // cannot be built (found by the stand clock on 30.11: the student joined the last day of the old month with no lesson left in it, so nothing was charged and
     // the row never reached «К оплате»).  The check is skipped on those days only; it is not weakened on the others.
-    requireBillingDayStand();
+    requireBillingDayStand(2, "on the 1st the billing day 1 is the day a NEW centre already has: no change of the mode, no confirmation window");
     const project = info.project.name;
     const org = await Org.create("Месяц 25.10");
     const fee = 600000;

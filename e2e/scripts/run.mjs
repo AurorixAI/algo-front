@@ -31,7 +31,7 @@
  * run first; the `days` project (fixed dates from 2030 on, moves the clock far forward, never back) exists only with E2E_DAYS=1, runs last, alone, in its own
  * Playwright call with one worker.  A live stack of a previous run is ALWAYS removed first (`down -v`) unless E2E_REUSE=1: the clock key is deleted on a
  * fresh database only (deleting it under a live database would take the clock back).  Order: fresh stack -> key deleted -> build -> the nearest 10:00
- * ahead -> both services agree (+250 ms) -> tests.  E2E_REUSE=1 is refused when the stand is not near 10:00 (10:00-11:30) or is more than 96 h ahead.
+ * ahead -> both services agree (+250 ms) -> tests.  E2E_REUSE=1 is refused when the stand is not near 10:00 (10:00-11:30) or is more than 15 days ahead (stand-time.mjs).
  *
  * Flags starting with `--` before the first path are passed to Playwright (`--headed`, `--project=mobile`, `--grep ...`).
  */
@@ -40,7 +40,7 @@ import { existsSync, mkdirSync, openSync, readFileSync, rmSync, writeFileSync } 
 import net from "node:net";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { standTargetTime } from "./stand-time.mjs";
+import { STAND_MAX_AHEAD_SECONDS, standTargetTime } from "./stand-time.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const e2eDir = path.resolve(here, "..");
@@ -116,9 +116,9 @@ const AUTH_API = `http://localhost:${AUTH_PORT}/api/v1`;
 const EXAM_API = `http://localhost:${EXAM_PORT}/api/v1`;
 const SERVICES_SETTLE_MS = 250; // exam has two workers, each with its own 0.2 s cache of the offset: after the offsets agree, wait one cache out
 const DAYS_FIRST_DATE = "2030-05-01"; // the first date of the `days` project (e2e/days/days.spec.ts): a stand already at or past it cannot go back
-const REUSE_MAX_AHEAD_SECONDS = 96 * 3600; // up to the 1st of the next month: from the 28th after 10:00 it is ~3.5 days ahead (stand-time.mjs)
+const REUSE_MAX_AHEAD_SECONDS = STAND_MAX_AHEAD_SECONDS; // up to the 11th of the next month: from the 28th after 10:00 it is up to 14 days ahead (stand-time.mjs)
 
-/** The nearest 10:00 AHEAD by Tashkent, never on the 29th-31st (then the 1st of the next month; see stand-time.mjs); E2E_CLOCK_AT replaces it. */
+/** The nearest 10:00 AHEAD by Tashkent on the 11th-28th of a month (otherwise 10:00 of the nearest such day; see stand-time.mjs); E2E_CLOCK_AT replaces it. */
 function targetBusinessNow(realNowMs = Date.now()) {
   if (env.E2E_CLOCK_AT) {
     if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(env.E2E_CLOCK_AT)) throw new Error("E2E_CLOCK_AT must look like 2026-11-30T10:00");
@@ -176,7 +176,7 @@ async function waitServicesAgree(offset) {
   return seen;
 }
 
-/** The nearest 10:00 ahead (or E2E_CLOCK_AT) on a fresh stack; with E2E_REUSE=1 the stand is only checked: it must be at 10:00-11:30 and at most 96 h ahead. */
+/** The nearest 10:00 ahead (or E2E_CLOCK_AT) on a fresh stack; with E2E_REUSE=1 the stand is only checked: it must be at 10:00-11:30 and at most 15 days ahead. */
 async function setUpStandClock(reused) {
   const current = (await getJson(`${AUTH_API}/auth/dev/clock`)).body;
   if (!current) throw new Error("GET /auth/dev/clock answered nothing useful");
@@ -184,7 +184,7 @@ async function setUpStandClock(reused) {
   if (reused) {
     const minutes = Number(current.now_business.slice(11, 13)) * 60 + Number(current.now_business.slice(14, 16));
     if (minutes < 10 * 60 || minutes > 11 * 60 + 30 || offset > REUSE_MAX_AHEAD_SECONDS) {
-      throw new Error(`a fresh stand is needed: the reused stand shows ${current.now_business.slice(0, 16)} (offset ${offset} s); the ordinary projects run at 10:00-11:30 and at most 96 h ahead (npm run e2e:down)`);
+      throw new Error(`a fresh stand is needed: the reused stand shows ${current.now_business.slice(0, 16)} (offset ${offset} s); the ordinary projects run at 10:00-11:30 and at most 15 days ahead (npm run e2e:down)`);
     }
   } else {
     const target = targetBusinessNow();

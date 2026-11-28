@@ -1,7 +1,7 @@
 import { test, expect } from "../support/fixtures";
 import { readFileSync } from "node:fs";
 import { Org } from "../support/api";
-import { addDays, businessNow } from "../support/time";
+import { addDays, businessNow, requireBillingDayStand } from "../support/time";
 import { readSheet, readZip } from "../support/xlsx-lite";
 import { expectNoHorizontalScroll, expectStatementReconciles, moneyPattern, studentLink } from "../support/ui";
 
@@ -22,6 +22,7 @@ test.beforeAll(async () => {
 const MONTHS_NOMINATIVE = "(?:январь|февраль|март|апрель|май|июнь|июль|август|сентябрь|октябрь|ноябрь|декабрь)";
 
 test("partial payment: debtors row -> statement shows the allocation and «осталось» -> the rest closes the debt @mobile", async ({ signIn }) => {
+  requireBillingDayStand(11, "the charge of the student joined ten days ago must lie in the CURRENT month: the statement opens on it, the first row is the charge");
   const teacher = await org.addStaff("teacher", "Платёжный");
   const group = await org.createGroup({ name: "Группа ЧО", teacherId: teacher.userId });
   // Money-1 B7: charged from ten days ago - the term of 5 days has passed, so the debtors tab (not «К оплате») holds her

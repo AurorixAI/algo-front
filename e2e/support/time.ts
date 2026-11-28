@@ -174,10 +174,11 @@ export function payrollLine(fee: number, percent: string, lessons: number, divis
 }
 
 /**
- * The money tests of the lessons set «the common month starts today» (billing day 1..28).  The stand is started on the 1st..28th (e2e/scripts/stand-time.mjs); on the 29th-31st the test FAILS
- * with the reason, it is never skipped silently (a green run without the money tests is not green).
+ * The money tests of the lessons set «the common month starts today» (billing day 1..28).  The stand is started on the 11th..28th (e2e/scripts/stand-time.mjs); on any other day the test FAILS
+ * with the reason, it is never skipped silently (a green run without the money tests is not green).  `fromDay` and `why` name the first day the premise of the test holds on (default: 1).
  */
-export function requireBillingDayStand(): void {
+export function requireBillingDayStand(fromDay = 1, why = ""): void {
   const { day, date } = businessNow();
-  if (day > 28) throw new Error(`the stand shows ${date}, the 29th-31st: the rule of the stand time (the 1st of the next month, e2e/scripts/stand-time.mjs) is broken - the billing day of a centre is 1..28`);
+  if (day > 28) throw new Error(`the stand shows ${date}, the 29th-31st: the rule of the stand time (the 11th..28th, e2e/scripts/stand-time.mjs) is broken - the billing day of a centre is 1..28`);
+  if (day < fromDay) throw new Error(`the stand shows ${date}, the ${day}th: this check holds from the ${fromDay}th of a month${why ? ` (${why})` : ""} - the rule of the stand time (the 11th..28th, e2e/scripts/stand-time.mjs) is broken`);
 }

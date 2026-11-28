@@ -1,7 +1,7 @@
 import { test, expect } from "../support/fixtures";
 import { Org } from "../support/api";
 import { pickOption } from "../support/ui";
-import { addDays, businessNow } from "../support/time";
+import { addDays, businessNow, requireBillingDayStand } from "../support/time";
 
 /**
  * IA audit 22.10 (paths): the cards of «Оплаты» lead to the debtors tab; the owner's dashboard is not a dead end (KPI cards, the debt tile, the
@@ -14,6 +14,7 @@ test.beforeAll(async () => {
 });
 
 test("«Оплаты»: the card «Долг» -> the debtors tab; the student of a row opens on «Оплаты», its group is a link; the statement leads on", async ({ signIn }) => {
+  requireBillingDayStand(6, "the term of payment of 5 days of the running month has to be over: on the 1st-5th the student is «К оплате», not a debtor");
   const teacher = await org.addStaff("teacher", "Путевой");
   const group = await org.createGroup({ name: "Группа П2", teacherId: teacher.userId });
   // Money-1 B7: «Должники» holds the OVERDUE; a student charged from ten days ago is one (the first price below reaches back to his running period)
