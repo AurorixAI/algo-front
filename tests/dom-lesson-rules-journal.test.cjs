@@ -290,3 +290,29 @@ test("a lesson of today (11:00–12:00) is «Запланирован» at 12:00
   assert.deepEqual(noise(errors), []);
   await page.close();
 });
+
+// the common clock ticks only while the shown period holds today: a past period is not redrawn every 30 seconds
+test("the 30-second clock of the journal runs for the week of today and is off for the week before (and on again when it is back)", async () => {
+  const run = await openPage(ctx.browser, "lesson-rules.entry.tsx", serve(), { width: 1280, height: 900 });
+  const { page, errors } = run;
+  await page.clock.install({ time: new Date(`${WORLD_DAY}T07:00:00Z`) });
+  await page.evaluate(() => {
+    const active = new Set(); const set = window.setInterval.bind(window); const clear = window.clearInterval.bind(window);
+    window.__ticks = active;
+    window.setInterval = (fn, delay, ...rest) => { const id = set(fn, delay, ...rest); if (delay === 30000) active.add(id); return id; };
+    window.clearInterval = (id) => { active.delete(id); return clear(id); };
+  });
+  await page.evaluate(([user, props]) => window.mount("journal", user, props), [TEACHER, { groupId: JOURNAL.groupId, students: STUDENTS, adminMode: false }]);
+  await page.waitForSelector("th[data-lesson-key]");
+  await page.waitForSelector('[aria-label^="Предыдущ"]');
+  const ticks = () => page.evaluate(() => window.__ticks.size);
+  const now = await ticks();
+  assert.ok(now >= 1, "this week holds today: the clock runs");
+  await page.click('[aria-label^="Предыдущ"]');
+  await page.waitForFunction(() => window.__ticks.size >= 0);
+  assert.equal(await ticks(), now - 1, "the week before: the clock of the journal is off");
+  await page.click('[aria-label^="Следующ"]');
+  assert.equal(await ticks(), now, "back to this week: on again");
+  assert.deepEqual(noise(errors), []);
+  await page.close();
+});

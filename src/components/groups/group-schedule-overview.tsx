@@ -160,7 +160,6 @@ export function GroupScheduleOverview({ groupId, groupName = null, viewerRole = 
   /** The group has a teacher; without one the weekly lessons are still saved, with a hint (P1). */
   teacherAssigned?: boolean;
 }) {
-  useNow();   // the common 30-second clock: a lesson of today that ends while the page is open changes its word without a reload
   const today = formatBusinessDate();
   const { user } = useAuthStore();
   const { showToast, toastNode } = useToast();
@@ -183,6 +182,8 @@ export function GroupScheduleOverview({ groupId, groupName = null, viewerRole = 
     const start = mondayFor(anchorDate);
     return { start, end: addIsoDays(start, 6) };
   }, [anchorDate]);
+  // the common 30-second clock ticks only while the shown week holds today (a past or a future week is not redrawn)
+  useNow(30_000, period.start <= today && today <= period.end);
 
   const loadSchedule = useCallback(async () => {
     if (!groupId) return;

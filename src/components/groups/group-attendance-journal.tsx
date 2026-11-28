@@ -519,9 +519,10 @@ export function GroupAttendanceJournal({
   const historyScrollRef = useRef<HTMLDivElement | null>(null);
   const openCellContainerRef = useRef<HTMLTableCellElement | null>(null);
 
-  useNow();   // the common 30-second clock: a lesson of today that ends while the page is open changes its word without a reload (as in the schedule of the teacher)
   const today = formatBusinessDate();
   const period = useMemo(() => journalPeriod(anchorDate, viewMode), [anchorDate, viewMode]);
+  // the common 30-second clock ticks only while the shown period holds today: a lesson of today that ends while the page is open changes its word without a reload; a past month is not redrawn
+  useNow(30_000, period.start <= today && today <= period.end);
 
   const loadAttendance = useCallback(async (silent = false) => {
     if (!groupId) return;
