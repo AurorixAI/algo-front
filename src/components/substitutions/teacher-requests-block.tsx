@@ -15,6 +15,7 @@ import {
   assignedLine,
   assignedSingleLine,
   clearedForMeLine,
+  foldRequests,
   myRequestLine,
   recentRequests,
   substitutionErrorText,
@@ -101,6 +102,9 @@ export function TeacherRequestsBlock({
   };
 
   const items = data ? recentRequests(data.items ?? [], Date.now()) : [];
+  const [showAll, setShowAll] = useState(false);
+  const { shown, folded } = foldRequests(items);
+  const rows = showAll ? items : shown;
   const now = useNow(30_000, true);
   const assigned = assignedAhead(data?.assignedToMe ?? [], now, businessWallTimeToInstant);
   const cleared = data?.clearedForMe ?? [];
@@ -118,7 +122,7 @@ export function TeacherRequestsBlock({
             <button type="button" onClick={onNewRequest} className="inline-flex min-h-10 shrink-0 items-center whitespace-nowrap text-xs font-bold text-primary-600 hover:text-primary-700">{NEW_REQUEST_LINK}</button>
           </div>
           <ul className="divide-y divide-slate-100">
-            {items.map((item) => {
+            {rows.map((item) => {
               const hint = todayPendingHint(item, formatBusinessDate(new Date(now)), new Date(now));
               return (
                 <li key={item.id} data-testid="my-request-row" className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2 gap-y-1 py-2.5 first:pt-0 last:pb-0 sm:flex sm:flex-wrap sm:justify-between sm:gap-x-3 sm:gap-y-1.5">
@@ -168,6 +172,11 @@ export function TeacherRequestsBlock({
               );
             })}
           </ul>
+          {folded > 0 && (
+            <button type="button" data-testid="my-requests-toggle" onClick={() => setShowAll((previous) => !previous)} aria-expanded={showAll} className="mt-3 inline-flex min-h-10 items-center text-xs font-bold text-primary-600 hover:text-primary-700">
+              {showAll ? "Свернуть" : `Показать все (${items.length})`}
+            </button>
+          )}
           {error && <p role="alert" className="mt-3 text-xs font-medium text-rose-700">{error}</p>}
         </div>
       )}

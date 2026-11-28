@@ -101,7 +101,7 @@ import {
   notYourLessonText,
   substituteLabel,
 } from "@/lib/lesson-teacher";
-import { assignActionLabel, cancelLessonLabel, CORRECT_MARKS_LABEL, FINISH_LESSON_LABEL, lessonHasStarted, MARK_LESSON_LABEL, pastMarkLockReason, pastSubstituteLockReason } from "@/lib/schedule-card-actions";
+import { assignActionLabel, cancelLessonLabel, CORRECT_MARKS_LABEL, FINISH_LESSON_LABEL, lessonHasEnded, lessonHasStarted, MARK_LESSON_LABEL, pastMarkLockReason, pastSubstituteLockReason } from "@/lib/schedule-card-actions";
 import type { LiveExamItem } from "@/lib/ops-b-types";
 import { askConfirm } from "@/lib/confirm-dialog";
 import { canManageMoney, movedByOf, toastWithEffects } from "@/lib/money-effects";
@@ -357,7 +357,7 @@ function formatMembershipEvent(event: MembershipEvent): string {
   return `Переведён${event.source_group_name ? ` из «${event.source_group_name}»` : " в эту группу"}${date ? ` · ${date}` : ""}`;
 }
 
-function lessonStatusPresentation(status: string, lessonDate: string, today: string, cancelKind: string | null = null, lesson: Pick<Lesson, "reportedBy" | "reportedByRole"> | null = null) {
+function lessonStatusPresentation(status: string, lessonDate: string, today: string, cancelKind: string | null = null, lesson: Pick<Lesson, "reportedBy" | "reportedByRole" | "endTime"> | null = null) {
   if (status === "completed") {
     return {
       label: "Завершён",
@@ -384,7 +384,8 @@ function lessonStatusPresentation(status: string, lessonDate: string, today: str
       description: "Урок начат: отметки можно вносить",
     };
   }
-  if (lessonDate < today) {
+  // the border is the END of the lesson in the clock of the centre (`lessonHasEnded`, the rule of «Урока не было»), not the date
+  if (lessonHasEnded({ date: lessonDate, today, endTime: lesson?.endTime })) {
     return {
       label: "Не отмечен",
       className: "text-slate-500",

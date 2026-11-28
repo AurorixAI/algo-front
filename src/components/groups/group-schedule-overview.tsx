@@ -41,7 +41,7 @@ import { NO_TEACHER_SCHEDULE_HINT, nextBusinessDate, type WeeklyLesson } from "@
 import { weeklyResolver } from "@/lib/weekly-lessons";
 import { outOfPlan, todayPlanLines } from "@/lib/schedule-plan";
 import { canManageMoney } from "@/lib/money-effects";
-import { addedByLine, assignActionLabel, lessonHasStarted, pastMarkLockReason, assignLockReason, lessonTitle, roomLine, scheduleCardActions, movedFromText, sheetNotes, teacherLine } from "@/lib/schedule-card-actions";
+import { addedByLine, assignActionLabel, lessonHasEnded, lessonHasStarted, pastMarkLockReason, assignLockReason, lessonTitle, roomLine, scheduleCardActions, movedFromText, sheetNotes, teacherLine } from "@/lib/schedule-card-actions";
 import { Button } from "@/components/ui/button";
 import { waitingLessonHint } from "@/lib/lesson-rules";
 
@@ -72,7 +72,7 @@ function presentationFor(
   today: string,
   moved = false,
   cancelKind: string | null = null,
-  lesson: Pick<Lesson, "reportedBy" | "reportedByRole"> | null = null,
+  lesson: Pick<Lesson, "reportedBy" | "reportedByRole" | "endTime"> | null = null,
 ): ScheduleStatus {
   if (moved) {
     return {
@@ -117,7 +117,8 @@ function presentationFor(
           icon: Radio,
         };
   }
-  if (lessonDate < today) {
+  // the border is the END of the lesson in the clock of the centre (`lessonHasEnded`), not the date
+  if (lessonHasEnded({ date: lessonDate, today, endTime: lesson?.endTime })) {
     return {
       label: "Не отмечен",
       description: "Время урока прошло, но он не был начат",

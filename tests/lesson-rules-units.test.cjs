@@ -168,9 +168,10 @@ test("the words of the row and of the window, from the real answer pending_owner
   assert.equal(L.waitingChipText(2), "ждёт 2 дня");
   assert.equal(L.waitingChipText(5), "ждёт 5 дней");
   assert.equal(L.waitingChipText(11), "ждёт 11 дней");
-  assert.equal(L.waitingReasonText({ reason: "Отключили свет" }), "Урока не было: отключили свет");
-  assert.equal(L.waitingReasonText(item), "Урока не было: отключили свет", "the words of the teacher in the real answer");
+  assert.equal(L.waitingReasonText({ reason: "Отключили свет" }), "Урока не было: Отключили свет");
+  assert.equal(L.waitingReasonText(item), "Урока не было: Отключили свет", "the words of the teacher in the real answer");
   assert.equal(L.waitingReasonText({ reason: null }), "Урока не было");
+  assert.equal(L.waitingReasonText({ reason: "М23 — Эргашев К. заболел" }), "Урока не было: М23 — Эргашев К. заболел", "FIX4-B2: the first letter, a name or a short form is never changed");
   // who wrote it: the two words of the server (`reportedBy`, `reportedByRole`), not a guess from the person
   assert.deepEqual([item.reportedBy, item.reportedByRole], ["Эргашев К.", "teacher"]);
   assert.equal(L.waitingDialogTitle(item), "Преподаватель сообщил: урока не было");
@@ -370,4 +371,25 @@ test("the toast of «Урока не было» said from the journal: `waiting`
   assert.deepEqual(TC.missedCancelToast("пн, 9 ноября", TC.notesOf({ ok: true, cancelled: true, warnings: [] })), { title: "Урок пн, 9 ноября отмечен как не состоявшийся", tone: "success" }, "waiting is absent: the cancellation is done");
   assert.deepEqual(TC.missedCancelToast("пн, 9 ноября", TC.notesOf({ ok: true, waiting: false, warnings: [{ message: "Замена снята" }] })).tone, "warning", "notes of the server make the toast a warning");
   assert.equal(TC.cancelToastTitle(notes), "Отмена ждёт подтверждения");
+});
+
+test("FIX4-B3: foldRequests keeps every waiting row and the last 5 decided ones, the rest is folded", () => {
+  const row = (id, status, outcome) => ({ id, status, outcome });
+  const rows = [row("w1", "pending", null), row("w2", "closed", "cancel_waiting"), ...[1, 2, 3, 4, 5, 6, 7].map((n) => row(`d${n}`, "closed", "cancelled_centre"))];
+  const { shown, folded } = Subs.foldRequests(rows);
+  assert.deepEqual(shown.map((r) => r.id), ["w1", "w2", "d1", "d2", "d3", "d4", "d5"]);
+  assert.equal(folded, 2);
+  assert.deepEqual(Subs.foldRequests(rows.slice(0, 4)), { shown: rows.slice(0, 4), folded: 0 });
+});
+
+test("FIX4-B1: ONE border of «Запланирован» / «Не отмечен» - the END of the lesson in the clock of the centre (the minute of the end is still not over)", () => {
+  const C = require(path.join(root, "src/lib/schedule-card-actions.ts"));
+  const at = (iso) => new Date(iso);   // 07:00Z = 12:00 in Tashkent
+  const over = (endTime, now) => C.lessonHasEnded({ date: "2026-11-26", today: "2026-11-26", endTime, now: at(now) });
+  assert.equal(over("10:00", "2026-11-26T07:00:00Z"), true, "today, after the end");
+  assert.equal(over("15:00", "2026-11-26T07:00:00Z"), false, "today, before the end");
+  assert.equal(over("12:00", "2026-11-26T07:00:30Z"), false, "the minute of the end");
+  assert.equal(over("12:00", "2026-11-26T07:01:00Z"), true, "the next minute");
+  assert.equal(C.lessonHasEnded({ date: "2026-11-25", today: "2026-11-26", endTime: "23:00" }), true, "a past day");
+  assert.equal(C.lessonHasEnded({ date: "2026-11-27", today: "2026-11-26", endTime: "08:00" }), false, "a later day");
 });

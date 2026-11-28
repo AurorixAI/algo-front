@@ -31,7 +31,7 @@ for (const width of [1280, 1024, 375]) {
     assert.match(text, /Математика 7/);
     assert.match(text, /Эргашев К\./);
     assert.match(text, /Урока не было/);
-    assert.match(text, /Урока не было: отключили свет/, "the words of the teacher are shown as the server gave them");
+    assert.match(text, /Урока не было: Отключили свет/, "the words of the teacher are shown as the server gave them");
     assert.match(text, /сообщено сегодня/, "waitingDays is 0 in this answer: nothing like «ждёт 0 дней»");
     const row = rows;
     assert.equal(await row.locator('input[type="checkbox"]').count(), 0, "a cancellation is decided one by one: no tick");

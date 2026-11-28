@@ -1,5 +1,6 @@
 "use client";
 
+import { lessonHasEnded } from "@/lib/schedule-card-actions";
 import { Select } from "@/components/ui/select";
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { lessonFromAttendanceAction, useTeacherLessonPanel } from "@/lib/use-teacher-lesson-panel";
@@ -792,7 +793,8 @@ export default function TeacherSchedulePage() {
         if (lifecycle === "in_progress") {
           return { lesson, lifecycle, label: "Идёт", tone: "blue" as const };
         }
-        if (lesson.occurrenceDate < businessDate) {
+        // the border is the END of the lesson in the clock of the centre (`lessonHasEnded`), not the date
+        if (lessonHasEnded({ date: lesson.occurrenceDate, today: businessDate, endTime: lesson.endTime })) {
           return { lesson, lifecycle, label: "Не начат", tone: "amber" as const };
         }
         return { lesson, lifecycle, label: "Запланирован", tone: "violet" as const };
@@ -801,7 +803,7 @@ export default function TeacherSchedulePage() {
         `${left.lesson.occurrenceDate}_${left.lesson.startTime}_${left.lesson.groupName}`
           .localeCompare(`${right.lesson.occurrenceDate}_${right.lesson.startTime}_${right.lesson.groupName}`)
       ));
-  }, [weekOccurrences, weekLessonStatusMap, lessonStatusMap, businessDate]);
+  }, [weekOccurrences, weekLessonStatusMap, lessonStatusMap, businessDate, clockTick]);
 
   // «Ближайшее действие»: the SAME function as «Главная» (lib/today-actions.ts) - one answer on both screens
   const todayAgendaView = useMemo(

@@ -517,12 +517,15 @@ export function oneRowPerReturnedLesson(items: SubstitutionItem[]): Substitution
   return items.filter((item) => !(item.status === "closed" && item.outcome === "lesson_restored" && withCancellation.has(lessonKey(item))));
 }
 
+/** A row that still waits for somebody: a request, or a cancellation that waits for the owner (the teacher may take it back). */
+const waitingRow = (item: SubstitutionItem) => item.status === "pending" || item.outcome === "cancel_waiting";
+
 export function recentRequests(items: SubstitutionItem[], nowMs: number): SubstitutionItem[] {
   items = oneRowPerReturnedLesson(items);
   const decidedAt = (item: SubstitutionItem) => parseUtcNaive(item.decision?.at ?? item.createdAt)?.getTime() ?? 0;
   const limit = nowMs - RECENT_DAYS * 86_400_000;
   // LESSON-RULES: a cancellation that waits for the owner is a waiting row too (the teacher may take it back), the nearest lesson first
-  const waiting = (item: SubstitutionItem) => item.status === "pending" || item.outcome === "cancel_waiting";
+  const waiting = waitingRow;
   const pending = items
     .filter(waiting)
     .sort((a, b) => (startsAtMsOf(a) ?? 0) - (startsAtMsOf(b) ?? 0));
@@ -530,6 +533,17 @@ export function recentRequests(items: SubstitutionItem[], nowMs: number): Substi
     .filter((item) => !waiting(item) && decidedAt(item) >= limit)
     .sort((a, b) => decidedAt(b) - decidedAt(a));
   return [...pending, ...decided];
+}
+
+/** FIX4-B3: the block shows every waiting row and the last 5 decided ones at once; the older decided rows are behind «Показать все (N)» (N is all the rows of the block). */
+export const DECIDED_SHOWN = 5;
+
+/** `rows` is the answer of `recentRequests` (the waiting first, then the decided ones, the latest first): the rows shown at once and how many are folded. */
+export function foldRequests(rows: SubstitutionItem[]): { shown: SubstitutionItem[]; folded: number } {
+  const waiting = rows.filter(waitingRow);
+  const decided = rows.filter((row) => !waitingRow(row));
+  const shown = [...waiting, ...decided.slice(0, DECIDED_SHOWN)];
+  return { shown, folded: rows.length - shown.length };
 }
 
 export const ASSIGNED_TITLE = "Вам назначена замена";

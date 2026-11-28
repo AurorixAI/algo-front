@@ -80,7 +80,8 @@ export function AuditPanel({ entry, workspace, canSeeMoney, onClose, onReturn }:
   const [previewError, setPreviewError] = useState<string | null>(null);
   const key = entry ? `${entry.group.id}|${entry.lesson.lessonId}|${entry.lesson.date}` : null;
   // the server says whether the lesson can be returned (`canReturn`: held, the month open, the money right): the screen keeps no rule of its own
-  const mayReturn = entry !== null && entry.canReturn === true && canSeeMoney;
+  // FIX4-B5: an entry without the date (or the id) of the lesson is read, never returned: no request with an empty date, no button
+  const mayReturn = entry !== null && entry.canReturn === true && canSeeMoney && /^\d{4}-\d{2}-\d{2}$/.test(entry.lesson?.date ?? "") && Boolean(entry.lesson?.lessonId);
   useEffect(() => {
     setSalary(null);
     setPreviewError(null);

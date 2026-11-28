@@ -114,6 +114,12 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
   const [expiringTotal, setExpiringTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  /** FIX4-B4: the page of the list that is ON SCREEN (the key of the filters it was read with and its number) - a failed turn of the page keeps it and says so at the pager, never wipes the list. */
+  const shownRef = useRef<{ key: string; page: number } | null>(null);
+  const keepShownPage = useRef(false);
+  const [pageBusy, setPageBusy] = useState(false);
+  /** the number of the page that did not load (null: all good): «Повторить» asks it again */
+  const [pageFailed, setPageFailed] = useState<number | null>(null);
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
   const [dialogItem, setDialogItem] = useState<SubstitutionItem | null>(null);
@@ -180,7 +186,11 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
 
   const load = useCallback(async (silent = false) => {
     const token = guard.begin();
-    if (!silent) { setLoading(true); setLoadError(null); }
+    const readKey = JSON.stringify([tab, filter.groupId, filter.teacherId, urgentOnly, backdatedOnly, expiringOnly, search]);
+    // only the number of the page changed and a list is on screen: the list stays while the next page is read
+    const turn = shownRef.current?.key === readKey && shownRef.current.page !== page && live.current.items.length > 0;
+    if (turn) { setPageBusy(true); setPageFailed(null); }
+    else if (!silent) { setLoading(true); setLoadError(null); setPageFailed(null); }
     try {
       const data = await substitutionsApi.list({
         status: tab,
@@ -199,6 +209,8 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
         return;
       }
       setLoadError(null);
+      setPageFailed(null);
+      shownRef.current = { key: readKey, page };
       setItems(data.items ?? []);
       setTotal(data.total ?? 0);
       setPendingTotal(data.pendingTotal ?? 0);
@@ -211,18 +223,29 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
       useSubstitutionBadge.getState().setSummary({ pendingTotal: data.pendingTotal, oneOffDecisionsTotal: decisionsTotalRef.current, waitingTotal: data.waitingTotal, urgentTotal: data.urgentTotal, overdueTotal: useSubstitutionBadge.getState().overdue, expiringTotal: data.expiringTotal });
     } catch (failure) {
       if (!guard.accepts(token)) return;
+      if (turn && shownRef.current) {
+        // the failed page: the list of the shown page stays, the pager says it and offers «Повторить»
+        setPageFailed(page);
+        keepShownPage.current = true;
+        setPage(shownRef.current.page);
+        return;
+      }
       if (readFailureOutcome({ silent, rows: live.current.items.length }) === "keep-list") {
         if (staleToastGate.current()) showToast(STALE_LIST_TEXT, "warning");
         return;
       }
       setLoadError(LOAD_ERROR_TEXT);
     } finally {
-      if (guard.accepts(token)) setLoading(false);
+      if (guard.accepts(token)) { setLoading(false); setPageBusy(false); }
     }
   }, [tab, filter.groupId, filter.teacherId, urgentOnly, backdatedOnly, expiringOnly, search, page, guard, showToast]);
 
   loadRef.current = load;
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    // the page that was put back after a failed turn is on screen already: no second reading
+    if (keepShownPage.current) { keepShownPage.current = false; return; }
+    void load();
+  }, [load]);
 
   // back to the window: others may have decided meanwhile
   useEffect(() => {
@@ -604,12 +627,18 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
       </section>
 
       {!loading && !loadError && total > PAGE_SIZE && (
-        <div className="flex items-center justify-between gap-3 text-sm text-slate-600">
+        <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-slate-600">
           <span>Всего: {total}</span>
+          {pageFailed !== null && (
+            <div data-testid="page-error" role="alert" className="flex min-w-0 items-center gap-2 text-danger-700">
+              <span className="min-w-0 break-words">Не удалось открыть страницу {pageFailed + 1}. Показана страница {page + 1}.</span>
+              <Button type="button" data-testid="page-retry" variant="secondary" size="sm" onClick={() => setPage(pageFailed)}>Повторить</Button>
+            </div>
+          )}
           <div className="flex items-center gap-2">
-            <Button type="button" disabled={page === 0} onClick={() => setPage((current) => Math.max(0, current - 1))} aria-label="Предыдущая страница" variant="secondary" size="icon"><ChevronLeft className="h-4 w-4" /></Button>
+            <Button type="button" disabled={page === 0 || pageBusy} onClick={() => setPage((current) => Math.max(0, current - 1))} aria-label="Предыдущая страница" variant="secondary" size="icon"><ChevronLeft className="h-4 w-4" /></Button>
             <span>{page + 1} из {pageCount}</span>
-            <Button type="button" disabled={page + 1 >= pageCount} onClick={() => setPage((current) => current + 1)} aria-label="Следующая страница" variant="secondary" size="icon"><ChevronRight className="h-4 w-4" /></Button>
+            <Button type="button" disabled={page + 1 >= pageCount || pageBusy} onClick={() => setPage((current) => current + 1)} aria-label="Следующая страница" variant="secondary" size="icon"><ChevronRight className="h-4 w-4" /></Button>
           </div>
         </div>
       )}

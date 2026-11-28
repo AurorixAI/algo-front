@@ -22,11 +22,11 @@ export function waitingChipText(days: number): string {
 
 export const WAITING_REASON_PREFIX = "Урока не было";
 
-/** The words of the cancelling person in a row: «Урока не было: отключили свет» (an empty reason or the bare «Урока не было» is said once). */
+/** The words of the cancelling person in a row, AS HE WROTE THEM (no letter is changed: «М23», names and short forms stay): «Урока не было: Отключили свет» (an empty reason or the bare «Урока не было» is said once). */
 export function waitingReasonText(item: Pick<WaitingCancellationItem, "reason">): string {
   const reason = (item.reason ?? "").trim();
   if (!reason || reason.toLowerCase() === WAITING_REASON_PREFIX.toLowerCase()) return WAITING_REASON_PREFIX;
-  return `${WAITING_REASON_PREFIX}: ${reason.charAt(0).toLowerCase()}${reason.slice(1)}`;
+  return `${WAITING_REASON_PREFIX}: ${reason}`;
 }
 
 /** «Решить» of a waiting cancellation: named by the lesson (fifty rows must not read alike, LESSONS 142). */

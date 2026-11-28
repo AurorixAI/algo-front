@@ -28,6 +28,10 @@ for (const width of [375, 1280]) {
     const { page, errors } = await openBlock(mineOf(mineReal()), width);
     assert.match(plain(await page.textContent("section h2")), /Запросы и изменения уроков/);
     const rows = page.locator('[data-testid="my-request-row"]');
+    // FIX4-B3: the waiting ones (2) and the last 5 decided ones are shown at once, the two older ones are behind «Показать все (9)»
+    assert.equal(await rows.count(), 7, "2 waiting + the last 5 decided");
+    assert.equal(plain(await page.textContent('[data-testid="my-requests-toggle"]')), "Показать все (9)");
+    await page.click('[data-testid="my-requests-toggle"]');
     assert.equal(await rows.count(), 9, "12 records of the answer (two of them the one-off lessons) minus the three system records of the returned lessons: each of the three lessons has a cancellation of the teacher");
     const texts = (await rows.allTextContents()).map(plain);
     assert.match(texts[0], /ср, 18\.11 · Математика 7/);
@@ -129,4 +133,26 @@ test("the card «Ближайшее действие» says «Не закрыт 
   await today.page.waitForSelector('[data-testid="next-action-card"]');
   assert.equal(await today.page.locator('[data-testid="next-action-age"]').count(), 0);
   await today.page.close();
+});
+
+test("FIX4-B3: the answer of the new server (one record per returned lesson) - the block shows the waiting and the last 5 decided, the toggle opens and closes the rest; few rows - no toggle", async () => {
+  const mine = mineReal();
+  mine.items = mine.items.filter((i) => !(i.status === "closed" && i.outcome === "lesson_restored"));
+  const run = await openBlock(mineOf(mine));
+  const { page } = run;
+  const rows = page.locator('[data-testid="my-request-row"]');
+  assert.equal(await rows.count(), 7);
+  assert.equal(await page.locator('[data-testid="my-requests-toggle"]').getAttribute("aria-expanded"), "false");
+  await page.click('[data-testid="my-requests-toggle"]');
+  assert.equal(await rows.count(), 9);
+  assert.equal(plain(await page.textContent('[data-testid="my-requests-toggle"]')), "Свернуть");
+  await page.click('[data-testid="my-requests-toggle"]');
+  assert.equal(await rows.count(), 7);
+  await page.close();
+  const few = mineReal();
+  few.items = few.items.filter((i) => i.status !== "closed" && !["cancelled_centre", "cancelled_holiday"].includes(i.outcome)).slice(0, 4);
+  const small = await openBlock(mineOf(few));
+  assert.ok(await small.page.locator('[data-testid="my-request-row"]').count() <= 6);
+  assert.equal(await small.page.locator('[data-testid="my-requests-toggle"]').count(), 0, "nothing is folded: no toggle");
+  await small.page.close();
 });

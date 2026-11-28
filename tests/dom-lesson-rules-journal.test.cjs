@@ -245,3 +245,25 @@ for (const width of [1280, 375]) {
     await page.close();
   });
 }
+
+// FIX4-B1: «Запланирован» / «Не отмечен» of a lesson of TODAY follow the END of the lesson in the clock of the centre (12:00 here), not the date
+for (const width of [1280, 375]) {
+  test(`${width}: a lesson of today that is over (09:00–10:00) is «Не отмечен», one that is not over (11:00–12:30 and 14:00–15:00) is «Запланирован»; the minute of the end is still not over`, async () => {
+    const journal = JSON.parse(JSON.stringify(JOURNAL));
+    const mk = (id, start, end) => ({ ...journal.lessons.find((l) => l.id === "lesson-mon" && l.date === "2026-11-30"), id, instanceKey: `${WORLD_DAY}_${id}`, date: WORLD_DAY, startTime: start, endTime: end, status: "scheduled" });
+    journal.lessons.push(mk("lesson-over", "09:00", "10:00"), mk("lesson-later", "14:00", "15:00"), mk("lesson-running", "11:00", "12:30"));
+    const run = await openPage(ctx.browser, "lesson-rules.entry.tsx", (request) => (/\/attendance(\?|$)/.test(request.path + (request.query ? `?${request.query}` : "")) ? { json: journal } : null), { width, height: width === 375 ? 800 : 900, today: WORLD_DAY });
+    const { page, errors } = run;
+    await page.evaluate(([user, props]) => window.mount("journal", user, props), [{ id: WORLD_TEACHER_ID, role: "teacher", org_role: "teacher" }, { groupId: journal.groupId, students: STUDENTS, adminMode: false }]);
+    await page.waitForSelector(`th[data-lesson-key="${WORLD_DAY}_lesson-over"]`);
+    const head = async (id) => plain(await page.textContent(`th[data-lesson-key="${WORLD_DAY}_${id}"]`));
+    assert.match(await head("lesson-over"), /Не отмечен/);
+    assert.doesNotMatch(await head("lesson-over"), /Запланирован/);
+    assert.match(await head("lesson-later"), /Запланирован/);
+    assert.doesNotMatch(await head("lesson-later"), /Не отмечен/);
+    assert.match(await head("lesson-running"), /Запланирован/, "11:00–12:30 at 12:00: not over");
+    assert.match(plain(await page.textContent(`th[data-lesson-key="2026-11-25_lesson-wed"]`)), /Не отмечен/, "a past day is as before");
+    assert.deepEqual(noise(errors), []);
+    await page.close();
+  });
+}

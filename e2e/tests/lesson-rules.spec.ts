@@ -49,7 +49,7 @@ test("the teacher reports «урока не было» -> the owner confirms «�
   await ownerPage.goto("/owner/substitutions");
   const row = ownerPage.getByTestId("waiting-row");
   await expect(row).toHaveCount(1);
-  await expect(row).toContainText("Урока не было: отключили свет");   // the words of the teacher, as the server gave them
+  await expect(row).toContainText("Урока не было: Отключили свет");   // the words of the teacher, as the server gave them
   await expect(row).toContainText(group.name);
   await expect(ownerPage.getByRole("tab", { name: /Ждут решения \(1\)/ })).toBeVisible();   // the number of the tab is the server's waitingTotal
   await row.getByRole("button", { name: /Решить отмену/ }).click();
